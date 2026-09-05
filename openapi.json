@@ -1,0 +1,2736 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Commerce Exception API",
+    "version": "1.0.0",
+    "description": "Detect and resolve order, payment, inventory, shipping and support exceptions with idempotent actions and receipts."
+  },
+  "servers": [
+    {
+      "url": "https://commerceexception-api.com"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Liveness and deployed version",
+        "operationId": "getHealth",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "summary": "Service index — endpoints, auth and error format",
+        "operationId": "get/",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/exceptions": {
+      "post": {
+        "summary": "Classify commerce exceptions and return an idempotent action plan",
+        "description": "Send one order's payment, fulfilment, shipping and stock state. Returns every exception found on it — duplicate captures, money held against goods that never arrived, refunds owed and never issued, oversells, unbilled remainders — each with a severity, the money it puts at issue in integer minor units, and one action to resolve it. Every action carries an idempotency key derived from the remedy rather than from the request, so replaying the same exception produces the same key and cannot refund twice. No proposed payout can ever exceed what was actually captured. Send one \"exception\" or up to 100 in \"exceptions\" — billed one unit per exception.",
+        "operationId": "postV1Exceptions",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "count": {
+                      "type": "integer",
+                      "description": "Exceptions resolved. Equals the units billed."
+                    },
+                    "actionable": {
+                      "type": "integer",
+                      "description": "How many need something done — anything but a lone no_action."
+                    },
+                    "resolutions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "exceptionId": {
+                            "type": "string"
+                          },
+                          "orderId": {
+                            "type": "string"
+                          },
+                          "severity": {
+                            "type": "string",
+                            "enum": [
+                              "critical",
+                              "high",
+                              "medium",
+                              "low",
+                              "none"
+                            ],
+                            "description": "The highest severity across the findings."
+                          },
+                          "ageDays": {
+                            "type": "integer",
+                            "description": "Whole UTC days from placedAt to observedAt."
+                          },
+                          "policy": {
+                            "type": "object",
+                            "description": "The effective policy with every default resolved, echoed so nothing is a hidden assumption."
+                          },
+                          "ledger": {
+                            "type": "object",
+                            "description": "Every derived amount the decision rests on, in integer minor units. Published in full because a receipt nobody can recompute is not evidence.",
+                            "properties": {
+                              "orderedValueMinor": {
+                                "type": "integer"
+                              },
+                              "shippedValueMinor": {
+                                "type": "integer"
+                              },
+                              "deliveredValueMinor": {
+                                "type": "integer"
+                              },
+                              "returnedValueMinor": {
+                                "type": "integer"
+                              },
+                              "inTransitValueMinor": {
+                                "type": "integer"
+                              },
+                              "keptValueMinor": {
+                                "type": "integer",
+                                "description": "Delivered and not sent back."
+                              },
+                              "unshippedValueMinor": {
+                                "type": "integer"
+                              },
+                              "unfulfillableValueMinor": {
+                                "type": "integer",
+                                "description": "Unshipped units with no stock behind them."
+                              },
+                              "entitledToHoldMinor": {
+                                "type": "integer",
+                                "description": "Value of goods shipped, not returned, and not aboard a shipment that will never arrive."
+                              },
+                              "capturedMinor": {
+                                "type": "integer"
+                              },
+                              "refundedMinor": {
+                                "type": "integer"
+                              },
+                              "netCapturedMinor": {
+                                "type": "integer",
+                                "description": "Captured minus refunded. The most that can ever be refunded."
+                              },
+                              "authorizedMinor": {
+                                "type": "integer"
+                              },
+                              "duplicateCaptureMinor": {
+                                "type": "integer"
+                              },
+                              "overholdMinor": {
+                                "type": "integer",
+                                "description": "Held beyond entitledToHoldMinor. Every payout is allocated out of this, in priority order."
+                              },
+                              "shortfallMinor": {
+                                "type": "integer",
+                                "description": "Shipped beyond what was captured. Money owed to the merchant."
+                              },
+                              "refundCeilingMinor": {
+                                "type": "integer",
+                                "description": "Hard bound on everything this API will ever propose paying out. Equal to netCapturedMinor."
+                              },
+                              "unshippedUnits": {
+                                "type": "integer"
+                              },
+                              "unrestockedUnits": {
+                                "type": "integer"
+                              }
+                            }
+                          },
+                          "findings": {
+                            "type": "array",
+                            "description": "Every exception found on the order, not just the first. Sorted by severity, then by claim on the money.",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "description": "Stable enum — see GET /v1/exception-types."
+                                },
+                                "severity": {
+                                  "type": "string",
+                                  "enum": [
+                                    "critical",
+                                    "high",
+                                    "medium",
+                                    "low",
+                                    "none"
+                                  ]
+                                },
+                                "amountMinor": {
+                                  "type": "integer",
+                                  "description": "Money this finding puts at issue, before any ceiling."
+                                },
+                                "units": {
+                                  "type": "integer"
+                                },
+                                "detail": {
+                                  "type": "string"
+                                },
+                                "evidence": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "description": "The concrete facts the classification rests on."
+                                },
+                                "agedUp": {
+                                  "type": "boolean",
+                                  "description": "True when age pushed the severity up one level."
+                                }
+                              }
+                            }
+                          },
+                          "actions": {
+                            "type": "array",
+                            "description": "In execution order, which is also the order money was allocated. One action per finding.",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "kind": {
+                                  "type": "string",
+                                  "enum": [
+                                    "refund",
+                                    "recapture",
+                                    "reship",
+                                    "restock",
+                                    "credit",
+                                    "escalate",
+                                    "no_action"
+                                  ]
+                                },
+                                "exceptionType": {
+                                  "type": "string"
+                                },
+                                "amountMinor": {
+                                  "type": "integer",
+                                  "description": "What actually moves, after every ceiling."
+                                },
+                                "claimedMinor": {
+                                  "type": "integer",
+                                  "description": "What the finding claimed before clipping."
+                                },
+                                "clipped": {
+                                  "type": "boolean",
+                                  "description": "True when the amount was reduced to fit money that actually exists."
+                                },
+                                "units": {
+                                  "type": "integer"
+                                },
+                                "reason": {
+                                  "type": "string",
+                                  "description": "Stable enum — branch on this, not on detail."
+                                },
+                                "detail": {
+                                  "type": "string"
+                                },
+                                "idempotencyKey": {
+                                  "type": "string",
+                                  "description": "Derived from the remedy, never from the request. Replaying the same exception yields the same key."
+                                }
+                              }
+                            }
+                          },
+                          "totals": {
+                            "type": "object",
+                            "description": "recoverableMinor, refundMinor, creditMinor, escalatedPayoutMinor, recaptureMinor, pendingRecaptureMinor, restockUnits."
+                          },
+                          "receipt": {
+                            "type": "object",
+                            "description": "What was decided, on what evidence, with a SHA-256 digest over the canonical decision.",
+                            "properties": {
+                              "decidedAt": {
+                                "type": "string"
+                              },
+                              "moneyOutMinor": {
+                                "type": "integer",
+                                "description": "Refunds plus credits plus escalated payouts. Never exceeds refundCeilingMinor."
+                              },
+                              "moneyInMinor": {
+                                "type": "integer"
+                              },
+                              "evidence": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "digest": {
+                                "type": "string"
+                              }
+                            }
+                          },
+                          "warnings": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "description": "Structurally valid but worth a human's attention."
+                          }
+                        }
+                      }
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "exception": {
+                    "type": "object",
+                    "required": [
+                      "exceptionId",
+                      "orderId",
+                      "currency",
+                      "placedAt",
+                      "observedAt",
+                      "lines",
+                      "payment"
+                    ],
+                    "properties": {
+                      "exceptionId": {
+                        "type": "string",
+                        "description": "Your ticket id. Deliberately NOT part of the idempotency key — two ticket ids for one problem are one problem."
+                      },
+                      "orderId": {
+                        "type": "string",
+                        "description": "The order the money moves against. This IS part of the idempotency key."
+                      },
+                      "currency": {
+                        "type": "string",
+                        "description": "ISO-4217. Every amount on the case is denominated in it."
+                      },
+                      "placedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "All age and SLA arithmetic runs from here, in whole UTC days."
+                      },
+                      "observedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "When the state below was observed. Required and never defaulted to now: every deadline is measured against it, so a replay reproduces the same verdict."
+                      },
+                      "orderStatus": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "cancelled",
+                          "completed"
+                        ],
+                        "description": "Defaults to \"open\". A cancelled order has no fulfilment obligation, and its in-transit goods stop counting as the merchant's to hold."
+                      },
+                      "lines": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 500,
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "sku",
+                            "orderedQty",
+                            "shippedQty",
+                            "deliveredQty",
+                            "returnedQty",
+                            "unitPriceMinor"
+                          ],
+                          "properties": {
+                            "sku": {
+                              "type": "string"
+                            },
+                            "description": {
+                              "type": "string"
+                            },
+                            "orderedQty": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "description": "Units the customer bought."
+                            },
+                            "shippedQty": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Units that have physically left. Cannot exceed orderedQty."
+                            },
+                            "deliveredQty": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Units the carrier confirmed delivered. Cannot exceed shippedQty."
+                            },
+                            "returnedQty": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Units that came back, from the customer or from the carrier. Cannot exceed shippedQty."
+                            },
+                            "restockedQty": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Returned units already back in sellable stock. Defaults to 0; the shortfall becomes a restock action."
+                            },
+                            "unitPriceMinor": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Integer minor units, in the case currency. A fractional price is rejected, not rounded."
+                            },
+                            "onHandQty": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Sellable units on hand. Without it an oversell cannot be detected and a refund cannot be upgraded to a reship — both are reported in warnings rather than guessed."
+                            }
+                          }
+                        }
+                      },
+                      "payment": {
+                        "type": "object",
+                        "required": [
+                          "capturedMinor",
+                          "refundedMinor"
+                        ],
+                        "properties": {
+                          "capturedMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Money actually taken, gross of refunds."
+                          },
+                          "refundedMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Money already returned. Cannot exceed capturedMinor."
+                          },
+                          "authorizedMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Authorized and NOT captured. The only headroom a recapture may use."
+                          },
+                          "refundableUntil": {
+                            "type": "string",
+                            "format": "date",
+                            "description": "Last UTC day the processor accepts a refund. Past it, money owed becomes store credit instead."
+                          },
+                          "charges": {
+                            "type": "array",
+                            "maxItems": 500,
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "chargeId",
+                                "amountMinor",
+                                "capturedAt",
+                                "status"
+                              ],
+                              "properties": {
+                                "chargeId": {
+                                  "type": "string"
+                                },
+                                "amountMinor": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "capturedAt": {
+                                  "type": "string",
+                                  "format": "date-time",
+                                  "description": "Minute-granular. Duplicate detection compares these directly."
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "captured",
+                                    "authorized",
+                                    "refunded",
+                                    "voided",
+                                    "failed"
+                                  ],
+                                  "description": "Only \"captured\" charges hold money and only they can be duplicates."
+                                },
+                                "currency": {
+                                  "type": "string",
+                                  "description": "Optional. Must equal the case currency; a charge in another currency is rejected rather than converted."
+                                }
+                              }
+                            },
+                            "description": "Needed for duplicate-charge detection. Without it that check is skipped and a warning says so."
+                          }
+                        }
+                      },
+                      "shipment": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "not_shipped",
+                              "in_transit",
+                              "delivered",
+                              "lost",
+                              "returned_to_sender"
+                            ]
+                          },
+                          "carrier": {
+                            "type": "string"
+                          },
+                          "trackingId": {
+                            "type": "string"
+                          },
+                          "lastScanAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "Silence for transitStaleDays is treated as lost."
+                          },
+                          "promisedBy": {
+                            "type": "string",
+                            "format": "date",
+                            "description": "The delivery date promised to the customer."
+                          }
+                        }
+                      },
+                      "policy": {
+                        "type": "object",
+                        "properties": {
+                          "fulfilmentSlaDays": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 365,
+                            "description": "Whole days before \"captured but nothing shipped\" is an exception. Default 3."
+                          },
+                          "transitStaleDays": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 365,
+                            "description": "Whole days of carrier silence before an in-transit shipment counts as lost. Default 10."
+                          },
+                          "duplicateWindowMinutes": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 10080,
+                            "description": "Two identical captures inside this window are a duplicate. Default 60."
+                          },
+                          "escalateAfterDays": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 3650,
+                            "description": "An exception older than this in whole days is raised one severity level. Default 14."
+                          },
+                          "autoRefundCapMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Largest payout proposed automatically. Above it the action becomes \"escalate\" carrying the proposed amount. No default — unset means no cap."
+                          }
+                        }
+                      },
+                      "metadata": {
+                        "type": "object"
+                      }
+                    }
+                  },
+                  "exceptions": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "exceptionId",
+                        "orderId",
+                        "currency",
+                        "placedAt",
+                        "observedAt",
+                        "lines",
+                        "payment"
+                      ],
+                      "properties": {
+                        "exceptionId": {
+                          "type": "string",
+                          "description": "Your ticket id. Deliberately NOT part of the idempotency key — two ticket ids for one problem are one problem."
+                        },
+                        "orderId": {
+                          "type": "string",
+                          "description": "The order the money moves against. This IS part of the idempotency key."
+                        },
+                        "currency": {
+                          "type": "string",
+                          "description": "ISO-4217. Every amount on the case is denominated in it."
+                        },
+                        "placedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "All age and SLA arithmetic runs from here, in whole UTC days."
+                        },
+                        "observedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "When the state below was observed. Required and never defaulted to now: every deadline is measured against it, so a replay reproduces the same verdict."
+                        },
+                        "orderStatus": {
+                          "type": "string",
+                          "enum": [
+                            "open",
+                            "cancelled",
+                            "completed"
+                          ],
+                          "description": "Defaults to \"open\". A cancelled order has no fulfilment obligation, and its in-transit goods stop counting as the merchant's to hold."
+                        },
+                        "lines": {
+                          "type": "array",
+                          "minItems": 1,
+                          "maxItems": 500,
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "sku",
+                              "orderedQty",
+                              "shippedQty",
+                              "deliveredQty",
+                              "returnedQty",
+                              "unitPriceMinor"
+                            ],
+                            "properties": {
+                              "sku": {
+                                "type": "string"
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "orderedQty": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "description": "Units the customer bought."
+                              },
+                              "shippedQty": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Units that have physically left. Cannot exceed orderedQty."
+                              },
+                              "deliveredQty": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Units the carrier confirmed delivered. Cannot exceed shippedQty."
+                              },
+                              "returnedQty": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Units that came back, from the customer or from the carrier. Cannot exceed shippedQty."
+                              },
+                              "restockedQty": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Returned units already back in sellable stock. Defaults to 0; the shortfall becomes a restock action."
+                              },
+                              "unitPriceMinor": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Integer minor units, in the case currency. A fractional price is rejected, not rounded."
+                              },
+                              "onHandQty": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "Sellable units on hand. Without it an oversell cannot be detected and a refund cannot be upgraded to a reship — both are reported in warnings rather than guessed."
+                              }
+                            }
+                          }
+                        },
+                        "payment": {
+                          "type": "object",
+                          "required": [
+                            "capturedMinor",
+                            "refundedMinor"
+                          ],
+                          "properties": {
+                            "capturedMinor": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Money actually taken, gross of refunds."
+                            },
+                            "refundedMinor": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Money already returned. Cannot exceed capturedMinor."
+                            },
+                            "authorizedMinor": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Authorized and NOT captured. The only headroom a recapture may use."
+                            },
+                            "refundableUntil": {
+                              "type": "string",
+                              "format": "date",
+                              "description": "Last UTC day the processor accepts a refund. Past it, money owed becomes store credit instead."
+                            },
+                            "charges": {
+                              "type": "array",
+                              "maxItems": 500,
+                              "items": {
+                                "type": "object",
+                                "required": [
+                                  "chargeId",
+                                  "amountMinor",
+                                  "capturedAt",
+                                  "status"
+                                ],
+                                "properties": {
+                                  "chargeId": {
+                                    "type": "string"
+                                  },
+                                  "amountMinor": {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  "capturedAt": {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "description": "Minute-granular. Duplicate detection compares these directly."
+                                  },
+                                  "status": {
+                                    "type": "string",
+                                    "enum": [
+                                      "captured",
+                                      "authorized",
+                                      "refunded",
+                                      "voided",
+                                      "failed"
+                                    ],
+                                    "description": "Only \"captured\" charges hold money and only they can be duplicates."
+                                  },
+                                  "currency": {
+                                    "type": "string",
+                                    "description": "Optional. Must equal the case currency; a charge in another currency is rejected rather than converted."
+                                  }
+                                }
+                              },
+                              "description": "Needed for duplicate-charge detection. Without it that check is skipped and a warning says so."
+                            }
+                          }
+                        },
+                        "shipment": {
+                          "type": "object",
+                          "required": [
+                            "status"
+                          ],
+                          "properties": {
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "not_shipped",
+                                "in_transit",
+                                "delivered",
+                                "lost",
+                                "returned_to_sender"
+                              ]
+                            },
+                            "carrier": {
+                              "type": "string"
+                            },
+                            "trackingId": {
+                              "type": "string"
+                            },
+                            "lastScanAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "Silence for transitStaleDays is treated as lost."
+                            },
+                            "promisedBy": {
+                              "type": "string",
+                              "format": "date",
+                              "description": "The delivery date promised to the customer."
+                            }
+                          }
+                        },
+                        "policy": {
+                          "type": "object",
+                          "properties": {
+                            "fulfilmentSlaDays": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 365,
+                              "description": "Whole days before \"captured but nothing shipped\" is an exception. Default 3."
+                            },
+                            "transitStaleDays": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 365,
+                              "description": "Whole days of carrier silence before an in-transit shipment counts as lost. Default 10."
+                            },
+                            "duplicateWindowMinutes": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 10080,
+                              "description": "Two identical captures inside this window are a duplicate. Default 60."
+                            },
+                            "escalateAfterDays": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 3650,
+                              "description": "An exception older than this in whole days is raised one severity level. Default 14."
+                            },
+                            "autoRefundCapMinor": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Largest payout proposed automatically. Above it the action becomes \"escalate\" carrying the proposed amount. No default — unset means no cap."
+                            }
+                          }
+                        },
+                        "metadata": {
+                          "type": "object"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "example": {
+                "exception": {
+                  "exceptionId": "case_88213",
+                  "orderId": "SO-90417",
+                  "currency": "USD",
+                  "placedAt": "2026-03-02",
+                  "observedAt": "2026-03-21",
+                  "orderStatus": "open",
+                  "lines": [
+                    {
+                      "sku": "KB-88",
+                      "description": "Mechanical keyboard",
+                      "orderedQty": 2,
+                      "shippedQty": 2,
+                      "deliveredQty": 0,
+                      "returnedQty": 0,
+                      "unitPriceMinor": 8900,
+                      "onHandQty": 0
+                    },
+                    {
+                      "sku": "CBL-2M",
+                      "description": "USB-C cable 2m",
+                      "orderedQty": 1,
+                      "shippedQty": 1,
+                      "deliveredQty": 1,
+                      "returnedQty": 0,
+                      "unitPriceMinor": 1900,
+                      "onHandQty": 40
+                    }
+                  ],
+                  "payment": {
+                    "capturedMinor": 39400,
+                    "refundedMinor": 0,
+                    "authorizedMinor": 0,
+                    "charges": [
+                      {
+                        "chargeId": "ch_A1",
+                        "amountMinor": 19700,
+                        "capturedAt": "2026-03-02T10:14:00Z",
+                        "status": "captured"
+                      },
+                      {
+                        "chargeId": "ch_A2",
+                        "amountMinor": 19700,
+                        "capturedAt": "2026-03-02T10:17:00Z",
+                        "status": "captured"
+                      }
+                    ]
+                  },
+                  "shipment": {
+                    "status": "lost",
+                    "carrier": "UPS",
+                    "trackingId": "1Z-4471",
+                    "lastScanAt": "2026-03-06T02:00:00Z",
+                    "promisedBy": "2026-03-09"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "x-quota-cost": 0
+      }
+    },
+    "/v1/demo/resolve": {
+      "post": {
+        "summary": "Public demo — resolve one exception without a key",
+        "description": "The real engine, capped at one exception with 10 order lines and 10 charges. Nothing is stored and nothing is metered.",
+        "operationId": "postV1DemoResolve",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "resolution": {
+                      "type": "object",
+                      "properties": {
+                        "exceptionId": {
+                          "type": "string"
+                        },
+                        "orderId": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string",
+                          "enum": [
+                            "critical",
+                            "high",
+                            "medium",
+                            "low",
+                            "none"
+                          ],
+                          "description": "The highest severity across the findings."
+                        },
+                        "ageDays": {
+                          "type": "integer",
+                          "description": "Whole UTC days from placedAt to observedAt."
+                        },
+                        "policy": {
+                          "type": "object",
+                          "description": "The effective policy with every default resolved, echoed so nothing is a hidden assumption."
+                        },
+                        "ledger": {
+                          "type": "object",
+                          "description": "Every derived amount the decision rests on, in integer minor units. Published in full because a receipt nobody can recompute is not evidence.",
+                          "properties": {
+                            "orderedValueMinor": {
+                              "type": "integer"
+                            },
+                            "shippedValueMinor": {
+                              "type": "integer"
+                            },
+                            "deliveredValueMinor": {
+                              "type": "integer"
+                            },
+                            "returnedValueMinor": {
+                              "type": "integer"
+                            },
+                            "inTransitValueMinor": {
+                              "type": "integer"
+                            },
+                            "keptValueMinor": {
+                              "type": "integer",
+                              "description": "Delivered and not sent back."
+                            },
+                            "unshippedValueMinor": {
+                              "type": "integer"
+                            },
+                            "unfulfillableValueMinor": {
+                              "type": "integer",
+                              "description": "Unshipped units with no stock behind them."
+                            },
+                            "entitledToHoldMinor": {
+                              "type": "integer",
+                              "description": "Value of goods shipped, not returned, and not aboard a shipment that will never arrive."
+                            },
+                            "capturedMinor": {
+                              "type": "integer"
+                            },
+                            "refundedMinor": {
+                              "type": "integer"
+                            },
+                            "netCapturedMinor": {
+                              "type": "integer",
+                              "description": "Captured minus refunded. The most that can ever be refunded."
+                            },
+                            "authorizedMinor": {
+                              "type": "integer"
+                            },
+                            "duplicateCaptureMinor": {
+                              "type": "integer"
+                            },
+                            "overholdMinor": {
+                              "type": "integer",
+                              "description": "Held beyond entitledToHoldMinor. Every payout is allocated out of this, in priority order."
+                            },
+                            "shortfallMinor": {
+                              "type": "integer",
+                              "description": "Shipped beyond what was captured. Money owed to the merchant."
+                            },
+                            "refundCeilingMinor": {
+                              "type": "integer",
+                              "description": "Hard bound on everything this API will ever propose paying out. Equal to netCapturedMinor."
+                            },
+                            "unshippedUnits": {
+                              "type": "integer"
+                            },
+                            "unrestockedUnits": {
+                              "type": "integer"
+                            }
+                          }
+                        },
+                        "findings": {
+                          "type": "array",
+                          "description": "Every exception found on the order, not just the first. Sorted by severity, then by claim on the money.",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "description": "Stable enum — see GET /v1/exception-types."
+                              },
+                              "severity": {
+                                "type": "string",
+                                "enum": [
+                                  "critical",
+                                  "high",
+                                  "medium",
+                                  "low",
+                                  "none"
+                                ]
+                              },
+                              "amountMinor": {
+                                "type": "integer",
+                                "description": "Money this finding puts at issue, before any ceiling."
+                              },
+                              "units": {
+                                "type": "integer"
+                              },
+                              "detail": {
+                                "type": "string"
+                              },
+                              "evidence": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "description": "The concrete facts the classification rests on."
+                              },
+                              "agedUp": {
+                                "type": "boolean",
+                                "description": "True when age pushed the severity up one level."
+                              }
+                            }
+                          }
+                        },
+                        "actions": {
+                          "type": "array",
+                          "description": "In execution order, which is also the order money was allocated. One action per finding.",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "refund",
+                                  "recapture",
+                                  "reship",
+                                  "restock",
+                                  "credit",
+                                  "escalate",
+                                  "no_action"
+                                ]
+                              },
+                              "exceptionType": {
+                                "type": "string"
+                              },
+                              "amountMinor": {
+                                "type": "integer",
+                                "description": "What actually moves, after every ceiling."
+                              },
+                              "claimedMinor": {
+                                "type": "integer",
+                                "description": "What the finding claimed before clipping."
+                              },
+                              "clipped": {
+                                "type": "boolean",
+                                "description": "True when the amount was reduced to fit money that actually exists."
+                              },
+                              "units": {
+                                "type": "integer"
+                              },
+                              "reason": {
+                                "type": "string",
+                                "description": "Stable enum — branch on this, not on detail."
+                              },
+                              "detail": {
+                                "type": "string"
+                              },
+                              "idempotencyKey": {
+                                "type": "string",
+                                "description": "Derived from the remedy, never from the request. Replaying the same exception yields the same key."
+                              }
+                            }
+                          }
+                        },
+                        "totals": {
+                          "type": "object",
+                          "description": "recoverableMinor, refundMinor, creditMinor, escalatedPayoutMinor, recaptureMinor, pendingRecaptureMinor, restockUnits."
+                        },
+                        "receipt": {
+                          "type": "object",
+                          "description": "What was decided, on what evidence, with a SHA-256 digest over the canonical decision.",
+                          "properties": {
+                            "decidedAt": {
+                              "type": "string"
+                            },
+                            "moneyOutMinor": {
+                              "type": "integer",
+                              "description": "Refunds plus credits plus escalated payouts. Never exceeds refundCeilingMinor."
+                            },
+                            "moneyInMinor": {
+                              "type": "integer"
+                            },
+                            "evidence": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "digest": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "warnings": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Structurally valid but worth a human's attention."
+                        }
+                      }
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "exception"
+                ],
+                "properties": {
+                  "exception": {
+                    "type": "object",
+                    "required": [
+                      "exceptionId",
+                      "orderId",
+                      "currency",
+                      "placedAt",
+                      "observedAt",
+                      "lines",
+                      "payment"
+                    ],
+                    "properties": {
+                      "exceptionId": {
+                        "type": "string",
+                        "description": "Your ticket id. Deliberately NOT part of the idempotency key — two ticket ids for one problem are one problem."
+                      },
+                      "orderId": {
+                        "type": "string",
+                        "description": "The order the money moves against. This IS part of the idempotency key."
+                      },
+                      "currency": {
+                        "type": "string",
+                        "description": "ISO-4217. Every amount on the case is denominated in it."
+                      },
+                      "placedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "All age and SLA arithmetic runs from here, in whole UTC days."
+                      },
+                      "observedAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "When the state below was observed. Required and never defaulted to now: every deadline is measured against it, so a replay reproduces the same verdict."
+                      },
+                      "orderStatus": {
+                        "type": "string",
+                        "enum": [
+                          "open",
+                          "cancelled",
+                          "completed"
+                        ],
+                        "description": "Defaults to \"open\". A cancelled order has no fulfilment obligation, and its in-transit goods stop counting as the merchant's to hold."
+                      },
+                      "lines": {
+                        "type": "array",
+                        "minItems": 1,
+                        "maxItems": 500,
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "sku",
+                            "orderedQty",
+                            "shippedQty",
+                            "deliveredQty",
+                            "returnedQty",
+                            "unitPriceMinor"
+                          ],
+                          "properties": {
+                            "sku": {
+                              "type": "string"
+                            },
+                            "description": {
+                              "type": "string"
+                            },
+                            "orderedQty": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "description": "Units the customer bought."
+                            },
+                            "shippedQty": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Units that have physically left. Cannot exceed orderedQty."
+                            },
+                            "deliveredQty": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Units the carrier confirmed delivered. Cannot exceed shippedQty."
+                            },
+                            "returnedQty": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Units that came back, from the customer or from the carrier. Cannot exceed shippedQty."
+                            },
+                            "restockedQty": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Returned units already back in sellable stock. Defaults to 0; the shortfall becomes a restock action."
+                            },
+                            "unitPriceMinor": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Integer minor units, in the case currency. A fractional price is rejected, not rounded."
+                            },
+                            "onHandQty": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "description": "Sellable units on hand. Without it an oversell cannot be detected and a refund cannot be upgraded to a reship — both are reported in warnings rather than guessed."
+                            }
+                          }
+                        }
+                      },
+                      "payment": {
+                        "type": "object",
+                        "required": [
+                          "capturedMinor",
+                          "refundedMinor"
+                        ],
+                        "properties": {
+                          "capturedMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Money actually taken, gross of refunds."
+                          },
+                          "refundedMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Money already returned. Cannot exceed capturedMinor."
+                          },
+                          "authorizedMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Authorized and NOT captured. The only headroom a recapture may use."
+                          },
+                          "refundableUntil": {
+                            "type": "string",
+                            "format": "date",
+                            "description": "Last UTC day the processor accepts a refund. Past it, money owed becomes store credit instead."
+                          },
+                          "charges": {
+                            "type": "array",
+                            "maxItems": 500,
+                            "items": {
+                              "type": "object",
+                              "required": [
+                                "chargeId",
+                                "amountMinor",
+                                "capturedAt",
+                                "status"
+                              ],
+                              "properties": {
+                                "chargeId": {
+                                  "type": "string"
+                                },
+                                "amountMinor": {
+                                  "type": "integer",
+                                  "minimum": 0
+                                },
+                                "capturedAt": {
+                                  "type": "string",
+                                  "format": "date-time",
+                                  "description": "Minute-granular. Duplicate detection compares these directly."
+                                },
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "captured",
+                                    "authorized",
+                                    "refunded",
+                                    "voided",
+                                    "failed"
+                                  ],
+                                  "description": "Only \"captured\" charges hold money and only they can be duplicates."
+                                },
+                                "currency": {
+                                  "type": "string",
+                                  "description": "Optional. Must equal the case currency; a charge in another currency is rejected rather than converted."
+                                }
+                              }
+                            },
+                            "description": "Needed for duplicate-charge detection. Without it that check is skipped and a warning says so."
+                          }
+                        }
+                      },
+                      "shipment": {
+                        "type": "object",
+                        "required": [
+                          "status"
+                        ],
+                        "properties": {
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "not_shipped",
+                              "in_transit",
+                              "delivered",
+                              "lost",
+                              "returned_to_sender"
+                            ]
+                          },
+                          "carrier": {
+                            "type": "string"
+                          },
+                          "trackingId": {
+                            "type": "string"
+                          },
+                          "lastScanAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "description": "Silence for transitStaleDays is treated as lost."
+                          },
+                          "promisedBy": {
+                            "type": "string",
+                            "format": "date",
+                            "description": "The delivery date promised to the customer."
+                          }
+                        }
+                      },
+                      "policy": {
+                        "type": "object",
+                        "properties": {
+                          "fulfilmentSlaDays": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 365,
+                            "description": "Whole days before \"captured but nothing shipped\" is an exception. Default 3."
+                          },
+                          "transitStaleDays": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 365,
+                            "description": "Whole days of carrier silence before an in-transit shipment counts as lost. Default 10."
+                          },
+                          "duplicateWindowMinutes": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 10080,
+                            "description": "Two identical captures inside this window are a duplicate. Default 60."
+                          },
+                          "escalateAfterDays": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 3650,
+                            "description": "An exception older than this in whole days is raised one severity level. Default 14."
+                          },
+                          "autoRefundCapMinor": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "description": "Largest payout proposed automatically. Above it the action becomes \"escalate\" carrying the proposed amount. No default — unset means no cap."
+                          }
+                        }
+                      },
+                      "metadata": {
+                        "type": "object"
+                      }
+                    }
+                  }
+                }
+              },
+              "example": {
+                "exception": {
+                  "exceptionId": "case_88213",
+                  "orderId": "SO-90417",
+                  "currency": "USD",
+                  "placedAt": "2026-03-02",
+                  "observedAt": "2026-03-21",
+                  "orderStatus": "open",
+                  "lines": [
+                    {
+                      "sku": "KB-88",
+                      "description": "Mechanical keyboard",
+                      "orderedQty": 2,
+                      "shippedQty": 2,
+                      "deliveredQty": 0,
+                      "returnedQty": 0,
+                      "unitPriceMinor": 8900,
+                      "onHandQty": 0
+                    },
+                    {
+                      "sku": "CBL-2M",
+                      "description": "USB-C cable 2m",
+                      "orderedQty": 1,
+                      "shippedQty": 1,
+                      "deliveredQty": 1,
+                      "returnedQty": 0,
+                      "unitPriceMinor": 1900,
+                      "onHandQty": 40
+                    }
+                  ],
+                  "payment": {
+                    "capturedMinor": 39400,
+                    "refundedMinor": 0,
+                    "authorizedMinor": 0,
+                    "charges": [
+                      {
+                        "chargeId": "ch_A1",
+                        "amountMinor": 19700,
+                        "capturedAt": "2026-03-02T10:14:00Z",
+                        "status": "captured"
+                      },
+                      {
+                        "chargeId": "ch_A2",
+                        "amountMinor": 19700,
+                        "capturedAt": "2026-03-02T10:17:00Z",
+                        "status": "captured"
+                      }
+                    ]
+                  },
+                  "shipment": {
+                    "status": "lost",
+                    "carrier": "UPS",
+                    "trackingId": "1Z-4471",
+                    "lastScanAt": "2026-03-06T02:00:00Z",
+                    "promisedBy": "2026-03-09"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/exception-types": {
+      "get": {
+        "summary": "Every exception type, action kind and reason code the engine emits",
+        "description": "The code catalogue, with the policy defaults and the idempotency key recipe. Branch on these codes rather than on the human-readable detail, which may change.",
+        "operationId": "getV1ExceptionTypes",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "exceptionTypes": {
+                      "type": "object"
+                    },
+                    "severities": {
+                      "type": "object"
+                    },
+                    "actionKinds": {
+                      "type": "object"
+                    },
+                    "actionReasons": {
+                      "type": "object"
+                    },
+                    "policyDefaults": {
+                      "type": "object"
+                    },
+                    "refundPriority": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "idempotency": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/checkout": {
+      "post": {
+        "summary": "Start a hosted Square checkout for a paid tier",
+        "description": "Returns a Square-hosted payment URL for the requested tier. No API key is needed — a prospect has not got one yet. The email Square collects becomes the account, so a key issued later for the same address inherits the paid quota. Enterprise returns a contact route rather than a payment link. THIS IS THE PATH FOR SOMEONE WHO IS NOT YET PAYING. It starts a NEW Square recurring subscription, so it is refused with 409 `conflict` (`details.reason` `existing_subscription`) when the request carries a dashboard session for an account that already has a live plan on this API — a second subscription would be charged alongside the first, every month, and this API cannot cancel either one. Change tier with POST /v1/subscription/plan, or, when Square collects your base fee, cancel it with Square first.",
+        "operationId": "postV1Checkout",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "checkoutUrl": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "Square-hosted payment page. Redirect the buyer here."
+                    },
+                    "tier": {
+                      "type": "string"
+                    },
+                    "sku": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "tier"
+                ],
+                "properties": {
+                  "tier": {
+                    "type": "string",
+                    "description": "developer | growth | scale | enterprise"
+                  }
+                }
+              },
+              "example": {
+                "tier": "developer"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/billing/webhook": {
+      "post": {
+        "summary": "Square billing events, forwarded by the shared hub",
+        "description": "Machine-to-machine only. The shared Square billing hub POSTs signed events here; the signature is verified over the exact request bytes. Not callable by API consumers — documented so the integration is auditable.",
+        "operationId": "postApiBillingWebhook",
+        "security": [
+          {
+            "hubSignature": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/keys": {
+      "post": {
+        "summary": "Request a free sandbox API key (sends a verification email)",
+        "description": "Starts self-serve key issuance. A one-time claim token is emailed to the address you supply; POST it to /v1/keys/claim to receive the key. No key is returned here, and the response is the same whether or not that address already has an account — so this endpoint cannot be used to find out who has one. The email is verified because your account, your usage and your invoice are all keyed to it: issuing on an unverified address would let anyone mint a working key on your account and spend your allowance. Keep using the same address and a paid plan bought with it raises the keys you already hold rather than issuing new ones. Distributed integrations may identify their discovery surface with the optional source object or x-integration-source header; invalid source values are ignored and never block key issuance.",
+        "operationId": "postV1Keys",
+        "security": [],
+        "responses": {
+          "202": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "verification_sent"
+                      ]
+                    },
+                    "email": {
+                      "type": "string",
+                      "format": "email"
+                    },
+                    "expiresAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "After this, request a new one."
+                    },
+                    "next": {
+                      "type": "string",
+                      "description": "The endpoint that turns the emailed token into a key."
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Where the claim token is sent. This becomes your account."
+                  },
+                  "name": {
+                    "type": "string",
+                    "maxLength": 60,
+                    "description": "Optional label for the key, e.g. \"staging\". Shown in GET /v1/keys."
+                  },
+                  "source": {
+                    "type": "object",
+                    "description": "Optional discovery metadata supplied by a README, SDK, Postman collection or MCP client.",
+                    "properties": {
+                      "source": {
+                        "type": "string"
+                      },
+                      "medium": {
+                        "type": "string"
+                      },
+                      "campaign": {
+                        "type": "string"
+                      },
+                      "content": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              },
+              "example": {
+                "email": "you@example.com",
+                "name": "staging",
+                "source": {
+                  "source": "web",
+                  "medium": "docs"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "List your API keys for this API",
+        "description": "Every key on YOUR account for this API — label, non-secret prefix, status, when it was created, when it was last used, and what it has consumed this period. Authenticate with any active key on the account; the account is taken from that key, never from a parameter, so this can only ever return your own keys. Keys you hold for other APIs in the portfolio are not listed here. Secrets are not returned and cannot be: only a peppered hash is stored. Free, and consumes no quota.",
+        "operationId": "getV1Keys",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "product": {
+                      "type": "string"
+                    },
+                    "accountId": {
+                      "type": "string"
+                    },
+                    "keys": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string",
+                            "description": "The label given at creation."
+                          },
+                          "prefix": {
+                            "type": "string",
+                            "description": "Non-secret leading characters, so you can tell two keys apart without holding either."
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "active",
+                              "revoked"
+                            ]
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "lastUsedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time",
+                            "description": "Null if the key has never been used."
+                          },
+                          "revokedAt": {
+                            "type": [
+                              "string",
+                              "null"
+                            ],
+                            "format": "date-time"
+                          },
+                          "quotaPerPeriod": {
+                            "type": [
+                              "integer",
+                              "null"
+                            ]
+                          },
+                          "usedInPeriod": {
+                            "type": "integer"
+                          },
+                          "current": {
+                            "type": "boolean",
+                            "description": "True for the key that authenticated this request."
+                          }
+                        }
+                      }
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-quota-cost": 0
+      }
+    },
+    "/v1/keys/claim": {
+      "post": {
+        "summary": "Exchange an emailed claim token for the API key",
+        "description": "Spends the token emailed by POST /v1/keys and returns the key. The key is shown ONCE — only a peppered hash is stored, so it can never be read back; if you lose it, rotate. The key works only on this API, and the allowance it is issued with reflects your account: your paid plan when you have one, the free sandbox allowance when you do not.",
+        "operationId": "postV1KeysClaim",
+        "security": [],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "apiKey": {
+                      "type": "string",
+                      "description": "Shown once and never again. Store it now."
+                    },
+                    "keyId": {
+                      "type": "string",
+                      "description": "Use this with /v1/keys/{id}/revoke and /v1/keys/{id}/rotate."
+                    },
+                    "product": {
+                      "type": "string",
+                      "description": "The key works only on this API."
+                    },
+                    "quotaPerPeriod": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "plan": {
+                      "type": "string",
+                      "description": "The tier this allowance came from, or \"sandbox\" on the free tier."
+                    },
+                    "warning": {
+                      "type": "string"
+                    },
+                    "usage": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "token"
+                ],
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "description": "The claim token from the verification email."
+                  }
+                }
+              },
+              "example": {
+                "token": "EXAMPLE_CLAIM_TOKEN_NOT_A_SECRET"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/keys/{id}/revoke": {
+      "post": {
+        "summary": "Revoke one of your API keys",
+        "description": "Kills a key immediately: the very next request made with it is refused with 401 invalid_api_key. There is no propagation delay and no cache to wait out. You may revoke the key you are authenticating with — that is the correct move when it has leaked, though you will then need another key, or the email flow, to get back in; rotate does both in one call. A key belonging to another account, or to another API, answers 404 exactly as an unknown id does, so this cannot be used to probe for keys you do not own. Idempotent, and free.",
+        "operationId": "postV1KeysIdRevoke",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "revoked"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-quota-cost": 0
+      }
+    },
+    "/v1/keys/{id}/rotate": {
+      "post": {
+        "summary": "Replace one of your API keys with a new secret",
+        "description": "Issues a replacement key and revokes the old one. This is the answer to a leaked or lost key: the new secret is returned once, the old secret stops working immediately, and the label carries over unless you supply a new one. The replacement is issued at your account's current allowance — your paid plan if you have one — not at the old key's. Rotating does not count against the active-key limit, because it replaces rather than adds. Free, and it works while you are out of quota.",
+        "operationId": "postV1KeysIdRotate",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "apiKey": {
+                      "type": "string",
+                      "description": "The new secret. Shown once."
+                    },
+                    "keyId": {
+                      "type": "string"
+                    },
+                    "replaced": {
+                      "type": "string",
+                      "description": "The id of the key that was revoked."
+                    },
+                    "product": {
+                      "type": "string"
+                    },
+                    "quotaPerPeriod": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "plan": {
+                      "type": "string"
+                    },
+                    "warning": {
+                      "type": "string"
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 60,
+                    "description": "Optional new label. Defaults to the old key's."
+                  }
+                }
+              },
+              "example": {
+                "name": "production (rotated)"
+              }
+            }
+          }
+        },
+        "x-quota-cost": 0
+      }
+    },
+    "/v1/usage": {
+      "get": {
+        "summary": "Your consumption and remaining allowance for this period",
+        "description": "Reports what YOUR ACCOUNT has consumed in the current quota period, the ceiling being enforced against it, and when that ceiling resets. The allowance belongs to the account, not to a key: every key you hold for this API draws on the same budget, so \"used\" is the total across all of them and a new key does not arrive with a fresh one. Free, and it consumes no quota, so it still answers once you are getting 429 quota_exceeded — which is the point: compare \"used\" against \"ceiling\" and read \"period.resetsAt\" to tell a period you have simply exhausted from a plan that is no longer active, which shows as a \"status\" of canceled and a ceiling of 0. \"used\" counts billing units (see \"unit\"), not HTTP requests: a single request can consume several. All money is in integer minor units (cents), never a decimal. The period reported here is the quota period — the calendar month in UTC, resetting at 00:00 UTC on the 1st. Your invoice window is anchored to the date you subscribed and is a different window; the amounts here are what this period’s usage has accrued so far, not a bill.",
+        "operationId": "getV1Usage",
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "product": {
+                      "type": "string",
+                      "description": "The API this key is bound to. A key works only on one."
+                    },
+                    "tier": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "The plan tier you are billed on, e.g. \"developer\". Null on a free sandbox key with no paid plan."
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "sandbox",
+                        "active",
+                        "past_due",
+                        "canceled"
+                      ],
+                      "description": "State of your plan. \"sandbox\" means no paid plan; \"canceled\" explains a ceiling of 0."
+                    },
+                    "unit": {
+                      "type": "string",
+                      "description": "The billing unit this API meters. \"used\", \"included\", \"ceiling\" and \"remaining\" are all counted in these, not in requests."
+                    },
+                    "period": {
+                      "type": "object",
+                      "description": "The quota period: the calendar month in UTC.",
+                      "properties": {
+                        "start": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "00:00 UTC on the 1st of the current month."
+                        },
+                        "resetsAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "When \"used\" returns to 0 — 00:00 UTC on the 1st of next month."
+                        }
+                      }
+                    },
+                    "included": {
+                      "type": "integer",
+                      "description": "Units your flat monthly fee already covers, before overage pricing applies. 0 without a paid plan."
+                    },
+                    "used": {
+                      "type": "integer",
+                      "description": "Units your account has consumed so far this period, summed across every key you hold for this API."
+                    },
+                    "ceiling": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "description": "The hard limit enforced against your ACCOUNT: requests on any of its keys are refused once the total passes it. Null means unlimited."
+                    },
+                    "remaining": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "description": "ceiling minus used, never below 0. Null when the ceiling is unlimited."
+                    },
+                    "overageSoFarMinor": {
+                      "type": "integer",
+                      "description": "What this period’s usage beyond \"included\" has accrued, in minor units, before your spend cap is applied. 0 without a paid plan."
+                    },
+                    "spendCapMinor": {
+                      "type": "integer",
+                      "description": "The most the overage part of one period can ever cost you, in minor units. Your flat base fee is separate and is never capped away."
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "description": "Quote this when reporting a problem."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-quota-cost": 0
+      }
+    },
+    "/v1/subscription": {
+      "get": {
+        "summary": "Your current plan, billing window and available changes (dashboard session required)",
+        "description": "Reports the plan this account is on, the billing window it is in, any tier change already staged for the next invoice, and the full pricing ladder marked up so you can see which rungs are an upgrade and which a downgrade. `planChangesGoThrough` is the field to branch on: `self_serve` means POST /v1/subscription/plan can move you; `provider_managed` means Square’s own recurring subscription holds your price and neither this API nor a new checkout can move it — buying again would create a SECOND Square subscription and charge you twice; `checkout` appears only when you have no plan at all, where starting one is exactly right. All money is in integer minor units (cents). AUTHENTICATION IS YOUR DASHBOARD SESSION, NOT AN API KEY. Send the `@sp/core` session cookie this API sets when you sign in, from the same origin. An API key is refused here on purpose: it is a data-plane credential that lives in CI and in third-party integrations, and it must never be able to change what you are billed, cancel your account, or read your payment history. Errors: 401 `unauthenticated` when there is no valid session, 403 `forbidden` when the request is cross-origin or its `x-csrf-token` header is missing or wrong.",
+        "operationId": "getV1Subscription",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "product": {
+                      "type": "string"
+                    },
+                    "subscribed": {
+                      "type": "boolean",
+                      "description": "False when this account has never had a paid plan on this API."
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "sandbox",
+                        "active",
+                        "past_due",
+                        "canceled"
+                      ],
+                      "description": "\"sandbox\" when there is no paid plan at all — the same vocabulary GET /v1/usage reports."
+                    },
+                    "plan": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "description": "The tier in force right now."
+                    },
+                    "pendingPlan": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "description": "A tier change already staged, applied when the current window is invoiced."
+                    },
+                    "planChangesGoThrough": {
+                      "type": "string",
+                      "enum": [
+                        "self_serve",
+                        "provider_managed",
+                        "checkout"
+                      ],
+                      "description": "`self_serve` — POST /v1/subscription/plan moves you. `provider_managed` — Square holds your recurring price; the tier cannot be moved from here and starting a new checkout would duplicate the subscription. `checkout` — no plan yet, so POST /v1/checkout is where one starts."
+                    },
+                    "baseFeeOwner": {
+                      "type": "string",
+                      "enum": [
+                        "internal",
+                        "provider"
+                      ],
+                      "description": "Who collects the flat monthly fee: us, or Square’s own recurring subscription."
+                    },
+                    "cancellation": {
+                      "type": "object",
+                      "description": "What cancelling would do, stated before you do it."
+                    },
+                    "tiers": {
+                      "type": "array",
+                      "description": "The published ladder, each rung marked current / upgrade / downgrade."
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-quota-cost": 0
+      }
+    },
+    "/v1/subscription/plan": {
+      "post": {
+        "summary": "Upgrade or downgrade to another plan (dashboard session required)",
+        "description": "Moves this account to another rung of the published pricing ladder and re-derives the ceiling enforced against every API key on it, so an upgrade is usable immediately rather than at the next invoice. The change is STAGED, not overwritten: the current billing window is closed at this instant and priced against the tier that was actually in force for it, and the incoming tier opens the next window with the original billing anniversary preserved. A downgrade therefore never re-prices days you already consumed on the dearer plan. Refused with 409 `conflict` (`details.reason` `provider_owned_base_fee`) when Square’s own recurring subscription holds your price (`baseFeeOwner` is `provider`) — read `planChangesGoThrough` from GET /v1/subscription first. That case cannot be moved from here at all: this API holds no Square subscription of yours to change, and POST /v1/checkout would create a SECOND one and charge you for both. Cancel with Square and buy the tier you want, or contact support. AUTHENTICATION IS YOUR DASHBOARD SESSION, NOT AN API KEY. Send the `@sp/core` session cookie this API sets when you sign in, from the same origin. An API key is refused here on purpose: it is a data-plane credential that lives in CI and in third-party integrations, and it must never be able to change what you are billed, cancel your account, or read your payment history. Errors: 401 `unauthenticated` when there is no valid session, 403 `forbidden` when the request is cross-origin or its `x-csrf-token` header is missing or wrong.",
+        "operationId": "postV1SubscriptionPlan",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "changed": {
+                      "type": "boolean"
+                    },
+                    "direction": {
+                      "type": "string",
+                      "enum": [
+                        "upgrade",
+                        "downgrade"
+                      ]
+                    },
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "entitlement": {
+                      "type": "object",
+                      "description": "The ceiling now enforced on this account’s keys, and when it took effect."
+                    },
+                    "billing": {
+                      "type": "object",
+                      "description": "Which tier the closed window is priced against, and when the new one starts."
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "planId"
+                ],
+                "properties": {
+                  "planId": {
+                    "type": "string",
+                    "description": "Tier id from GET /v1/subscription `tiers[].id`, e.g. \"growth\"."
+                  }
+                }
+              },
+              "example": {
+                "planId": "growth"
+              }
+            }
+          }
+        },
+        "x-quota-cost": 0
+      }
+    },
+    "/v1/subscription/cancel": {
+      "post": {
+        "summary": "Cancel this plan and end metered access (dashboard session required)",
+        "description": "Cancels the plan and drops every API key on this account for this product to a ceiling of 0, so access ends at the moment you cancel rather than at some later date nothing would enforce. The window you cancel in is closed and invoiced first, prorated to that instant: the elapsed share of the base fee plus any overage you accrued, still under the same spend cap. The invoice it writes is returned as `finalInvoice` and appears in GET /v1/invoices. When Square’s own recurring subscription collects your flat monthly fee (`baseFeeOwner` is `provider`) this API cannot stop that charge, so the request is refused with 409 unless you send `acknowledgeProviderBilling: true` — that flag exists so nobody ends up with a ceiling of zero and a live monthly charge without having been told first. AUTHENTICATION IS YOUR DASHBOARD SESSION, NOT AN API KEY. Send the `@sp/core` session cookie this API sets when you sign in, from the same origin. An API key is refused here on purpose: it is a data-plane credential that lives in CI and in third-party integrations, and it must never be able to change what you are billed, cancel your account, or read your payment history. Errors: 401 `unauthenticated` when there is no valid session, 403 `forbidden` when the request is cross-origin or its `x-csrf-token` header is missing or wrong.",
+        "operationId": "postV1SubscriptionCancel",
+        "security": [
+          {
+            "sessionCookie": [],
+            "csrfToken": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "canceled": {
+                      "type": "boolean"
+                    },
+                    "canceledAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "entitlement": {
+                      "type": "object",
+                      "description": "The ceiling now enforced. 0 — access has ended."
+                    },
+                    "money": {
+                      "type": "object",
+                      "description": "Exactly what happens to the charges, per base-fee owner."
+                    },
+                    "finalInvoice": {
+                      "type": [
+                        "object",
+                        "null"
+                      ],
+                      "description": "The invoice written for the window you cancelled in, or null when nothing had accrued."
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "acknowledgeProviderBilling": {
+                    "type": "boolean",
+                    "description": "Required only when `baseFeeOwner` is `provider`: confirms you understand Square will keep charging the monthly fee until you stop it there."
+                  }
+                }
+              },
+              "example": {
+                "acknowledgeProviderBilling": true
+              }
+            }
+          }
+        },
+        "x-quota-cost": 0
+      }
+    },
+    "/v1/invoices": {
+      "get": {
+        "summary": "Every invoice issued against this account, newest first (dashboard session required)",
+        "description": "Returns the stored `api_plan_invoices` rows for this account and this API — the rows the billing run actually wrote, never a reconstruction. Each one reconciles against itself: the included allowance and base fee shown are the PRORATED figures applied to that window, `overageMinorRaw` is the uncapped overage and `overageMinorCapped` is what was charged, and `baseChargedMinor` says how much of the base fee this invoice collected — 0 when Square’s recurring subscription had already taken it. An account with no billing history yet gets an empty list and a `note` explaining why, never a fabricated row. AUTHENTICATION IS YOUR DASHBOARD SESSION, NOT AN API KEY. Send the `@sp/core` session cookie this API sets when you sign in, from the same origin. An API key is refused here on purpose: it is a data-plane credential that lives in CI and in third-party integrations, and it must never be able to change what you are billed, cancel your account, or read your payment history. Errors: 401 `unauthenticated` when there is no valid session, 403 `forbidden` when the request is cross-origin or its `x-csrf-token` header is missing or wrong.",
+        "operationId": "getV1Invoices",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "product": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer"
+                    },
+                    "note": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Present only when the list is empty: says why, in a sentence a customer can act on."
+                    },
+                    "invoices": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-quota-cost": 0
+      }
+    },
+    "/v1/payments": {
+      "get": {
+        "summary": "Every payment attempted against this account and how it went (dashboard session required)",
+        "description": "The money movements behind your invoices, newest first: what was charged, whether it succeeded, and the processor’s payment id when it did. A billing period that came to nothing produces NO row here — it was closed without asking the processor for anything, and listing it would show you a payment that never happened. A failed attempt does appear, with its reason, because that is why an account goes past due. AUTHENTICATION IS YOUR DASHBOARD SESSION, NOT AN API KEY. Send the `@sp/core` session cookie this API sets when you sign in, from the same origin. An API key is refused here on purpose: it is a data-plane credential that lives in CI and in third-party integrations, and it must never be able to change what you are billed, cancel your account, or read your payment history. Errors: 401 `unauthenticated` when there is no valid session, 403 `forbidden` when the request is cross-origin or its `x-csrf-token` header is missing or wrong.",
+        "operationId": "getV1Payments",
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "product": {
+                      "type": "string"
+                    },
+                    "count": {
+                      "type": "integer"
+                    },
+                    "note": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "payments": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "amountMinor": {
+                            "type": "integer"
+                          },
+                          "outcome": {
+                            "type": "string",
+                            "enum": [
+                              "paid",
+                              "failed",
+                              "pending"
+                            ]
+                          },
+                          "providerPaymentId": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          },
+                          "failureReason": {
+                            "type": [
+                              "string",
+                              "null"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "requestId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-quota-cost": 0
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Your API key. Create one free at POST /v1/keys. Also accepted as the x-api-key header."
+      },
+      "sessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "sp_session",
+        "description": "The dashboard session cookie, set when you sign in and sent automatically by the browser from the same origin. HttpOnly, so it cannot be read or set by script; revoked by POST /auth/logout. An API key is not accepted on any endpoint that requires this."
+      },
+      "csrfToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-csrf-token",
+        "description": "CSRF token for a state-changing request on the account surface. Read it from the dashboard payload and send it with the session cookie, from the same origin. Missing, wrong or cross-origin is refused with 403 `forbidden`."
+      },
+      "hubSignature": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-hub-signature",
+        "description": "Machine-to-machine only. HMAC-SHA256 over `${x-hub-timestamp}.${rawBody}` with the shared hub secret, inside a 5-minute replay window. Not callable by API consumers; documented so the integration is auditable."
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "Deterministic error. Branch on `code`; quote `requestId` when reporting a problem.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "error"
+              ],
+              "properties": {
+                "error": {
+                  "type": "object",
+                  "required": [
+                    "code",
+                    "message",
+                    "requestId"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "enum": [
+                        "invalid_api_key",
+                        "missing_api_key",
+                        "quota_exceeded",
+                        "rate_limited",
+                        "invalid_request",
+                        "not_found",
+                        "method_not_allowed",
+                        "payload_too_large",
+                        "conflict",
+                        "internal_error"
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "requestId": {
+                      "type": "string",
+                      "format": "uuid"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
