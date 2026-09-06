@@ -1,111 +1,61 @@
 {
-  "info": {
-    "name": "Commerce Exception API",
-    "description": "Detect and resolve order, payment, inventory, shipping and support exceptions with idempotent actions and receipts.\n\n## Getting started\n\n1. Run **Create a free sandbox API key** — it needs no auth and emails a one-time claim token.\n2. Retrieve that token from the email and run `POST /v1/keys/claim`.\n3. Copy the claim response's `apiKey` into the collection's `apiKey` variable.\n4. Every API-key-authenticated request then works as-is.\n\nGenerated from the current service route contract.",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-  },
   "auth": {
-    "type": "bearer",
     "bearer": [
       {
         "key": "token",
-        "value": "{{apiKey}}",
-        "type": "string"
+        "type": "string",
+        "value": "{{apiKey}}"
       }
-    ]
+    ],
+    "type": "bearer"
   },
-  "variable": [
-    {
-      "key": "baseUrl",
-      "value": "https://commerceexception-api.com",
-      "type": "string"
-    },
-    {
-      "key": "apiKey",
-      "value": "",
-      "type": "string",
-      "description": "Paste the key returned by POST /v1/keys/claim."
-    }
-  ],
+  "info": {
+    "description": "## Fast start\n\nRun the first public demo for a real unmetered result. Then request a key, paste the emailed token into `claimToken`, and claim once; the claim test stores `apiKey` and clears `claimToken` locally. Saved 200 examples are produced by a pinned local execution of the same engine.\n\n## Errors\n\n`401` means a missing, invalid, or revoked API key. The service uses `400 invalid_request`, not 422. On `429`, branch on `error.code`, honor `Retry-After`, and back off. Every committed secret-bearing variable is empty.",
+    "name": "Commerce Exception API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
   "item": [
     {
-      "name": "Liveness and deployed version",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/health",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "health"
-          ]
-        }
-      }
-    },
-    {
-      "name": "Service index — endpoints, auth and error format",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": []
-        }
-      }
-    },
-    {
-      "name": "Classify commerce exceptions and return an idempotent action plan",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "content-type",
-            "value": "application/json"
-          },
-          {
-            "key": "authorization",
-            "value": "Bearer {{apiKey}}"
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('customer-ready demo contract', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const b = pm.response.json();",
+              "  pm.expect(b.resolution.findings.length).to.eql(2);",
+              "  pm.expect(b.resolution.totals.refundMinor).to.eql(37500);",
+              "  pm.expect(b.resolution.actions[0].idempotencyKey).to.exist;",
+              "});"
+            ],
+            "type": "text/javascript"
           }
-        ],
-        "url": {
-          "raw": "{{baseUrl}}/v1/exceptions",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "v1",
-            "exceptions"
-          ]
+        }
+      ],
+      "name": "Public demo — resolve one exception without a key",
+      "request": {
+        "auth": {
+          "type": "noauth"
         },
-        "description": "Send one order's payment, fulfilment, shipping and stock state. Returns every exception found on it — duplicate captures, money held against goods that never arrived, refunds owed and never issued, oversells, unbilled remainders — each with a severity, the money it puts at issue in integer minor units, and one action to resolve it. Every action carries an idempotency key derived from the remedy rather than from the request, so replaying the same exception produces the same key and cannot refund twice. No proposed payout can ever exceed what was actually captured. Send one \"exception\" or up to 100 in \"exceptions\" — billed one unit per exception.",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"exception\": {\n    \"exceptionId\": \"case_88213\",\n    \"orderId\": \"SO-90417\",\n    \"currency\": \"USD\",\n    \"placedAt\": \"2026-03-02\",\n    \"observedAt\": \"2026-03-21\",\n    \"orderStatus\": \"open\",\n    \"lines\": [\n      {\n        \"sku\": \"KB-88\",\n        \"description\": \"Mechanical keyboard\",\n        \"orderedQty\": 2,\n        \"shippedQty\": 2,\n        \"deliveredQty\": 0,\n        \"returnedQty\": 0,\n        \"unitPriceMinor\": 8900,\n        \"onHandQty\": 0\n      },\n      {\n        \"sku\": \"CBL-2M\",\n        \"description\": \"USB-C cable 2m\",\n        \"orderedQty\": 1,\n        \"shippedQty\": 1,\n        \"deliveredQty\": 1,\n        \"returnedQty\": 0,\n        \"unitPriceMinor\": 1900,\n        \"onHandQty\": 40\n      }\n    ],\n    \"payment\": {\n      \"capturedMinor\": 39400,\n      \"refundedMinor\": 0,\n      \"authorizedMinor\": 0,\n      \"charges\": [\n        {\n          \"chargeId\": \"ch_A1\",\n          \"amountMinor\": 19700,\n          \"capturedAt\": \"2026-03-02T10:14:00Z\",\n          \"status\": \"captured\"\n        },\n        {\n          \"chargeId\": \"ch_A2\",\n          \"amountMinor\": 19700,\n          \"capturedAt\": \"2026-03-02T10:17:00Z\",\n          \"status\": \"captured\"\n        }\n      ]\n    },\n    \"shipment\": {\n      \"status\": \"lost\",\n      \"carrier\": \"UPS\",\n      \"trackingId\": \"1Z-4471\",\n      \"lastScanAt\": \"2026-03-06T02:00:00Z\",\n      \"promisedBy\": \"2026-03-09\"\n    }\n  }\n}",
           "options": {
             "raw": {
               "language": "json"
             }
-          }
-        }
-      }
-    },
-    {
-      "name": "Public demo — resolve one exception without a key",
-      "request": {
-        "method": "POST",
+          },
+          "raw": "{\n  \"exception\": {\n    \"exceptionId\": \"case_88213\",\n    \"orderId\": \"SO-90417\",\n    \"currency\": \"USD\",\n    \"placedAt\": \"2026-03-02T00:00:00Z\",\n    \"observedAt\": \"2026-03-21T00:00:00Z\",\n    \"orderStatus\": \"open\",\n    \"lines\": [\n      {\n        \"sku\": \"KB-88\",\n        \"description\": \"Mechanical keyboard\",\n        \"orderedQty\": 2,\n        \"shippedQty\": 2,\n        \"deliveredQty\": 0,\n        \"returnedQty\": 0,\n        \"unitPriceMinor\": 8900,\n        \"onHandQty\": 0\n      },\n      {\n        \"sku\": \"CBL-2M\",\n        \"description\": \"USB-C cable 2m\",\n        \"orderedQty\": 1,\n        \"shippedQty\": 1,\n        \"deliveredQty\": 1,\n        \"returnedQty\": 0,\n        \"unitPriceMinor\": 1900,\n        \"onHandQty\": 40\n      }\n    ],\n    \"payment\": {\n      \"capturedMinor\": 39400,\n      \"refundedMinor\": 0,\n      \"authorizedMinor\": 0,\n      \"charges\": [\n        {\n          \"chargeId\": \"ch_A1\",\n          \"amountMinor\": 19700,\n          \"capturedAt\": \"2026-03-02T10:14:00Z\",\n          \"status\": \"captured\"\n        },\n        {\n          \"chargeId\": \"ch_A2\",\n          \"amountMinor\": 19700,\n          \"capturedAt\": \"2026-03-02T10:17:00Z\",\n          \"status\": \"captured\"\n        }\n      ]\n    },\n    \"shipment\": {\n      \"status\": \"lost\",\n      \"carrier\": \"UPS\",\n      \"trackingId\": \"1Z-4471\",\n      \"lastScanAt\": \"2026-03-06T02:00:00Z\",\n      \"promisedBy\": \"2026-03-09\"\n    }\n  }\n}"
+        },
+        "description": "Run first. The first useful result is two critical findings and a bounded refund plan totaling 37,500 minor units. Each proposed action has a stable idempotency key; the API advises but does not execute a refund. Nothing is stored or metered; the payload is synthetic.",
         "header": [
           {
             "key": "content-type",
             "value": "application/json"
           }
         ],
+        "method": "POST",
         "url": {
-          "raw": "{{baseUrl}}/v1/demo/resolve",
           "host": [
             "{{baseUrl}}"
           ],
@@ -113,156 +63,135 @@
             "v1",
             "demo",
             "resolve"
-          ]
-        },
-        "description": "The real engine, capped at one exception with 10 order lines and 10 charges. Nothing is stored and nothing is metered.",
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"exception\": {\n    \"exceptionId\": \"case_88213\",\n    \"orderId\": \"SO-90417\",\n    \"currency\": \"USD\",\n    \"placedAt\": \"2026-03-02\",\n    \"observedAt\": \"2026-03-21\",\n    \"orderStatus\": \"open\",\n    \"lines\": [\n      {\n        \"sku\": \"KB-88\",\n        \"description\": \"Mechanical keyboard\",\n        \"orderedQty\": 2,\n        \"shippedQty\": 2,\n        \"deliveredQty\": 0,\n        \"returnedQty\": 0,\n        \"unitPriceMinor\": 8900,\n        \"onHandQty\": 0\n      },\n      {\n        \"sku\": \"CBL-2M\",\n        \"description\": \"USB-C cable 2m\",\n        \"orderedQty\": 1,\n        \"shippedQty\": 1,\n        \"deliveredQty\": 1,\n        \"returnedQty\": 0,\n        \"unitPriceMinor\": 1900,\n        \"onHandQty\": 40\n      }\n    ],\n    \"payment\": {\n      \"capturedMinor\": 39400,\n      \"refundedMinor\": 0,\n      \"authorizedMinor\": 0,\n      \"charges\": [\n        {\n          \"chargeId\": \"ch_A1\",\n          \"amountMinor\": 19700,\n          \"capturedAt\": \"2026-03-02T10:14:00Z\",\n          \"status\": \"captured\"\n        },\n        {\n          \"chargeId\": \"ch_A2\",\n          \"amountMinor\": 19700,\n          \"capturedAt\": \"2026-03-02T10:17:00Z\",\n          \"status\": \"captured\"\n        }\n      ]\n    },\n    \"shipment\": {\n      \"status\": \"lost\",\n      \"carrier\": \"UPS\",\n      \"trackingId\": \"1Z-4471\",\n      \"lastScanAt\": \"2026-03-06T02:00:00Z\",\n      \"promisedBy\": \"2026-03-09\"\n    }\n  }\n}",
-          "options": {
-            "raw": {
-              "language": "json"
-            }
-          }
+          ],
+          "raw": "{{baseUrl}}/v1/demo/resolve"
         }
-      }
-    },
-    {
-      "name": "Every exception type, action kind and reason code the engine emits",
-      "request": {
-        "method": "GET",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/v1/exception-types",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "v1",
-            "exception-types"
-          ]
-        },
-        "description": "The code catalogue, with the policy defaults and the idempotency key recipe. Branch on these codes rather than on the human-readable detail, which may change."
-      }
-    },
-    {
-      "name": "Start a hosted Square checkout for a paid tier",
-      "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "content-type",
-            "value": "application/json"
-          }
-        ],
-        "url": {
-          "raw": "{{baseUrl}}/v1/checkout",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "v1",
-            "checkout"
-          ]
-        },
-        "description": "Returns a Square-hosted payment URL for the requested tier. No API key is needed — a prospect has not got one yet. The email Square collects becomes the account, so a key issued later for the same address inherits the paid quota. Enterprise returns a contact route rather than a payment link. THIS IS THE PATH FOR SOMEONE WHO IS NOT YET PAYING. It starts a NEW Square recurring subscription, so it is refused with 409 `conflict` (`details.reason` `existing_subscription`) when the request carries a dashboard session for an account that already has a live plan on this API — a second subscription would be charged alongside the first, every month, and this API cannot cancel either one. Change tier with POST /v1/subscription/plan, or, when Square collects your base fee, cancel it with Square first.",
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"tier\": \"developer\"\n}",
-          "options": {
-            "raw": {
-              "language": "json"
+      },
+      "response": [
+        {
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"resolution\": {\n    \"exceptionId\": \"case_88213\",\n    \"orderId\": \"SO-90417\",\n    \"currency\": \"USD\",\n    \"observedAt\": \"2026-03-21T00:00:00Z\",\n    \"evaluatedAt\": \"2026-09-06T20:30:00.000Z\",\n    \"orderStatus\": \"open\",\n    \"ageDays\": 19,\n    \"severity\": \"critical\",\n    \"policy\": {\n      \"fulfilmentSlaDays\": 3,\n      \"transitStaleDays\": 10,\n      \"duplicateWindowMinutes\": 60,\n      \"escalateAfterDays\": 14,\n      \"autoRefundCapMinor\": null\n    },\n    \"ledger\": {\n      \"currency\": \"USD\",\n      \"orderedValueMinor\": 19700,\n      \"shippedValueMinor\": 19700,\n      \"deliveredValueMinor\": 1900,\n      \"returnedValueMinor\": 0,\n      \"inTransitValueMinor\": 17800,\n      \"keptValueMinor\": 1900,\n      \"unshippedValueMinor\": 0,\n      \"unfulfillableValueMinor\": 0,\n      \"entitledToHoldMinor\": 1900,\n      \"capturedMinor\": 39400,\n      \"refundedMinor\": 0,\n      \"netCapturedMinor\": 39400,\n      \"authorizedMinor\": 0,\n      \"duplicateCaptureMinor\": 19700,\n      \"overholdMinor\": 37500,\n      \"shortfallMinor\": 0,\n      \"refundCeilingMinor\": 39400,\n      \"unshippedUnits\": 0,\n      \"unrestockedUnits\": 0\n    },\n    \"findings\": [\n      {\n        \"type\": \"duplicate_charge\",\n        \"severity\": \"critical\",\n        \"amountMinor\": 19700,\n        \"detail\": \"1 capture(s) of an amount already taken within 60 minute(s), worth 19700 minor units.\",\n        \"evidence\": [\n          \"charge ch_A2 captured 3 minute(s) after ch_A1 for the same 19700 minor units\"\n        ],\n        \"ageDays\": 19,\n        \"agedUp\": false\n      },\n      {\n        \"type\": \"shipment_lost_in_transit\",\n        \"severity\": \"critical\",\n        \"amountMinor\": 17800,\n        \"units\": 2,\n        \"detail\": \"The carrier declared the shipment lost with 17800 minor units of goods aboard.\",\n        \"evidence\": [\n          \"shipment.status=lost\",\n          \"shipment.trackingId=1Z-4471\",\n          \"daysSinceLastScan=15\",\n          \"inTransitValueMinor=17800\"\n        ],\n        \"ageDays\": 19,\n        \"agedUp\": true\n      }\n    ],\n    \"actions\": [\n      {\n        \"kind\": \"refund\",\n        \"exceptionType\": \"duplicate_charge\",\n        \"amountMinor\": 19700,\n        \"currency\": \"USD\",\n        \"claimedMinor\": 19700,\n        \"clipped\": false,\n        \"reason\": \"duplicate_capture_returned\",\n        \"detail\": \"Refund the duplicate capture through the original payment.\",\n        \"idempotencyKey\": \"cxr_bdb5ff5fc060e3aa35f8c5d163170934\"\n      },\n      {\n        \"kind\": \"refund\",\n        \"exceptionType\": \"shipment_lost_in_transit\",\n        \"amountMinor\": 17800,\n        \"currency\": \"USD\",\n        \"claimedMinor\": 17800,\n        \"clipped\": false,\n        \"units\": 2,\n        \"reason\": \"shipment_declared_lost\",\n        \"detail\": \"Refund the value of the goods that never arrived.\",\n        \"idempotencyKey\": \"cxr_c698a66459a3e8f94efdd57c2b3d4941\"\n      }\n    ],\n    \"totals\": {\n      \"recoverableMinor\": 37500,\n      \"refundMinor\": 37500,\n      \"creditMinor\": 0,\n      \"escalatedPayoutMinor\": 0,\n      \"recaptureMinor\": 0,\n      \"pendingRecaptureMinor\": 0,\n      \"restockUnits\": 0\n    },\n    \"receipt\": {\n      \"exceptionId\": \"case_88213\",\n      \"orderId\": \"SO-90417\",\n      \"currency\": \"USD\",\n      \"decidedAt\": \"2026-09-06T20:30:00.000Z\",\n      \"findingCount\": 2,\n      \"actionCount\": 2,\n      \"netCapturedMinor\": 39400,\n      \"refundCeilingMinor\": 39400,\n      \"moneyOutMinor\": 37500,\n      \"moneyInMinor\": 0,\n      \"evidence\": [\n        \"duplicate_charge -> refund 19700 USD (duplicate_capture_returned) cxr_bdb5ff5fc060e3aa35f8c5d163170934\",\n        \"shipment_lost_in_transit -> refund 17800 USD (shipment_declared_lost) cxr_c698a66459a3e8f94efdd57c2b3d4941\"\n      ],\n      \"digest\": \"823177ea0cc6b52cdedddca5bff2a383e2f8b4a518335881790a3c7fc4c36af1\"\n    },\n    \"warnings\": []\n  },\n  \"requestId\": \"req_example\"\n}",
+          "code": 200,
+          "cookie": [],
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
             }
-          }
-        }
-      }
-    },
-    {
-      "name": "Square billing events, forwarded by the shared hub",
-      "request": {
-        "method": "POST",
-        "header": [],
-        "url": {
-          "raw": "{{baseUrl}}/api/billing/webhook",
-          "host": [
-            "{{baseUrl}}"
           ],
-          "path": [
-            "api",
-            "billing",
-            "webhook"
-          ]
-        },
-        "description": "Machine-to-machine only. The shared Square billing hub POSTs signed events here; the signature is verified over the exact request bytes. Not callable by API consumers — documented so the integration is auditable."
-      }
+          "name": "200 — first useful result",
+          "originalRequest": {
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"exception\": {\n    \"exceptionId\": \"case_88213\",\n    \"orderId\": \"SO-90417\",\n    \"currency\": \"USD\",\n    \"placedAt\": \"2026-03-02T00:00:00Z\",\n    \"observedAt\": \"2026-03-21T00:00:00Z\",\n    \"orderStatus\": \"open\",\n    \"lines\": [\n      {\n        \"sku\": \"KB-88\",\n        \"description\": \"Mechanical keyboard\",\n        \"orderedQty\": 2,\n        \"shippedQty\": 2,\n        \"deliveredQty\": 0,\n        \"returnedQty\": 0,\n        \"unitPriceMinor\": 8900,\n        \"onHandQty\": 0\n      },\n      {\n        \"sku\": \"CBL-2M\",\n        \"description\": \"USB-C cable 2m\",\n        \"orderedQty\": 1,\n        \"shippedQty\": 1,\n        \"deliveredQty\": 1,\n        \"returnedQty\": 0,\n        \"unitPriceMinor\": 1900,\n        \"onHandQty\": 40\n      }\n    ],\n    \"payment\": {\n      \"capturedMinor\": 39400,\n      \"refundedMinor\": 0,\n      \"authorizedMinor\": 0,\n      \"charges\": [\n        {\n          \"chargeId\": \"ch_A1\",\n          \"amountMinor\": 19700,\n          \"capturedAt\": \"2026-03-02T10:14:00Z\",\n          \"status\": \"captured\"\n        },\n        {\n          \"chargeId\": \"ch_A2\",\n          \"amountMinor\": 19700,\n          \"capturedAt\": \"2026-03-02T10:17:00Z\",\n          \"status\": \"captured\"\n        }\n      ]\n    },\n    \"shipment\": {\n      \"status\": \"lost\",\n      \"carrier\": \"UPS\",\n      \"trackingId\": \"1Z-4471\",\n      \"lastScanAt\": \"2026-03-06T02:00:00Z\",\n      \"promisedBy\": \"2026-03-09\"\n    }\n  }\n}"
+            },
+            "description": "Run first. The first useful result is two critical findings and a bounded refund plan totaling 37,500 minor units. Each proposed action has a stable idempotency key; the API advises but does not execute a refund. Nothing is stored or metered; the payload is synthetic.",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "demo",
+                "resolve"
+              ],
+              "raw": "{{baseUrl}}/v1/demo/resolve"
+            }
+          },
+          "status": "OK"
+        }
+      ]
     },
     {
       "name": "Request a free sandbox API key (sends a verification email)",
       "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "content-type",
-            "value": "application/json"
-          }
-        ],
-        "url": {
-          "raw": "{{baseUrl}}/v1/keys",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "v1",
-            "keys"
-          ]
+        "auth": {
+          "type": "noauth"
         },
-        "description": "Starts self-serve key issuance. A one-time claim token is emailed to the address you supply; POST it to /v1/keys/claim to receive the key. No key is returned here, and the response is the same whether or not that address already has an account — so this endpoint cannot be used to find out who has one. The email is verified because your account, your usage and your invoice are all keyed to it: issuing on an unverified address would let anyone mint a working key on your account and spend your allowance. Keep using the same address and a paid plan bought with it raises the keys you already hold rather than issuing new ones. Distributed integrations may identify their discovery surface with the optional source object or x-integration-source header; invalid source values are ignored and never block key issuance.",
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"email\": \"you@example.com\",\n  \"name\": \"staging\",\n  \"source\": {\n    \"source\": \"postman\",\n    \"medium\": \"collection\"\n  }\n}",
           "options": {
             "raw": {
               "language": "json"
             }
-          }
-        }
-      }
-    },
-    {
-      "name": "List your API keys for this API",
-      "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "authorization",
-            "value": "Bearer {{apiKey}}"
-          }
-        ],
-        "url": {
-          "raw": "{{baseUrl}}/v1/keys",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "v1",
-            "keys"
-          ]
+          },
+          "raw": "{\n  \"email\": \"you@example.com\",\n  \"name\": \"postman\",\n  \"source\": {\n    \"source\": \"postman\",\n    \"medium\": \"collection\",\n    \"campaign\": \"commerce-exception-postman\",\n    \"content\": \"public-collection\"\n  }\n}"
         },
-        "description": "Every key on YOUR account for this API — label, non-secret prefix, status, when it was created, when it was last used, and what it has consumed this period. Authenticate with any active key on the account; the account is taken from that key, never from a parameter, so this can only ever return your own keys. Keys you hold for other APIs in the portfolio are not listed here. Secrets are not returned and cannot be: only a peppered hash is stored. Free, and consumes no quota."
-      }
-    },
-    {
-      "name": "Exchange an emailed claim token for the API key",
-      "request": {
-        "method": "POST",
+        "description": "Returns 202 and emails a one-time claim token; it never returns an API key. The source tuple is the exact Postman attribution for this collection.",
         "header": [
           {
             "key": "content-type",
             "value": "application/json"
           }
         ],
+        "method": "POST",
         "url": {
-          "raw": "{{baseUrl}}/v1/keys/claim",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "keys"
+          ],
+          "raw": "{{baseUrl}}/v1/keys"
+        }
+      }
+    },
+    {
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 201) {",
+              "  const b = pm.response.json();",
+              "  pm.collectionVariables.set('apiKey', b.apiKey);",
+              "  pm.collectionVariables.set('keyId', b.keyId);",
+              "  pm.collectionVariables.set('claimToken', '');",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "name": "Exchange an emailed claim token for the API key",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          },
+          "raw": "{\n  \"token\": \"{{claimToken}}\"\n}"
+        },
+        "description": "Paste the emailed token into claimToken and run once. On 201, this test stores apiKey/keyId locally and clears claimToken.",
+        "header": [
+          {
+            "key": "content-type",
+            "value": "application/json"
+          }
+        ],
+        "method": "POST",
+        "url": {
           "host": [
             "{{baseUrl}}"
           ],
@@ -270,49 +199,24 @@
             "v1",
             "keys",
             "claim"
-          ]
-        },
-        "description": "Spends the token emailed by POST /v1/keys and returns the key. The key is shown ONCE — only a peppered hash is stored, so it can never be read back; if you lose it, rotate. The key works only on this API, and the allowance it is issued with reflects your account: your paid plan when you have one, the free sandbox allowance when you do not.",
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"token\": \"EXAMPLE_CLAIM_TOKEN_NOT_A_SECRET\"\n}",
-          "options": {
-            "raw": {
-              "language": "json"
-            }
-          }
+          ],
+          "raw": "{{baseUrl}}/v1/keys/claim"
         }
       }
     },
     {
-      "name": "Revoke one of your API keys",
+      "name": "Classify commerce exceptions and return an idempotent action plan",
       "request": {
-        "method": "POST",
-        "header": [
-          {
-            "key": "authorization",
-            "value": "Bearer {{apiKey}}"
-          }
-        ],
-        "url": {
-          "raw": "{{baseUrl}}/v1/keys/{id}/revoke",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "v1",
-            "keys",
-            "{id}",
-            "revoke"
-          ]
+        "body": {
+          "mode": "raw",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          },
+          "raw": "{\n  \"exception\": {\n    \"exceptionId\": \"case_88213\",\n    \"orderId\": \"SO-90417\",\n    \"currency\": \"USD\",\n    \"placedAt\": \"2026-03-02T00:00:00Z\",\n    \"observedAt\": \"2026-03-21T00:00:00Z\",\n    \"orderStatus\": \"open\",\n    \"lines\": [\n      {\n        \"sku\": \"KB-88\",\n        \"description\": \"Mechanical keyboard\",\n        \"orderedQty\": 2,\n        \"shippedQty\": 2,\n        \"deliveredQty\": 0,\n        \"returnedQty\": 0,\n        \"unitPriceMinor\": 8900,\n        \"onHandQty\": 0\n      },\n      {\n        \"sku\": \"CBL-2M\",\n        \"description\": \"USB-C cable 2m\",\n        \"orderedQty\": 1,\n        \"shippedQty\": 1,\n        \"deliveredQty\": 1,\n        \"returnedQty\": 0,\n        \"unitPriceMinor\": 1900,\n        \"onHandQty\": 40\n      }\n    ],\n    \"payment\": {\n      \"capturedMinor\": 39400,\n      \"refundedMinor\": 0,\n      \"authorizedMinor\": 0,\n      \"charges\": [\n        {\n          \"chargeId\": \"ch_A1\",\n          \"amountMinor\": 19700,\n          \"capturedAt\": \"2026-03-02T10:14:00Z\",\n          \"status\": \"captured\"\n        },\n        {\n          \"chargeId\": \"ch_A2\",\n          \"amountMinor\": 19700,\n          \"capturedAt\": \"2026-03-02T10:17:00Z\",\n          \"status\": \"captured\"\n        }\n      ]\n    },\n    \"shipment\": {\n      \"status\": \"lost\",\n      \"carrier\": \"UPS\",\n      \"trackingId\": \"1Z-4471\",\n      \"lastScanAt\": \"2026-03-06T02:00:00Z\",\n      \"promisedBy\": \"2026-03-09\"\n    }\n  }\n}"
         },
-        "description": "Kills a key immediately: the very next request made with it is refused with 401 invalid_api_key. There is no propagation delay and no cache to wait out. You may revoke the key you are authenticating with — that is the correct move when it has leaked, though you will then need another key, or the email flow, to get back in; rotate does both in one call. A key belonging to another account, or to another API, answers 404 exactly as an unknown id does, so this cannot be used to probe for keys you do not own. Idempotent, and free."
-      }
-    },
-    {
-      "name": "Replace one of your API keys with a new secret",
-      "request": {
-        "method": "POST",
+        "description": "Authenticated primary-value call. Reuses the complete demo payload. All money uses one currency and integer minor units. Include charge timestamps to detect duplicates and shipment state to bound what the merchant may retain.",
         "header": [
           {
             "key": "content-type",
@@ -323,83 +227,368 @@
             "value": "Bearer {{apiKey}}"
           }
         ],
+        "method": "POST",
         "url": {
-          "raw": "{{baseUrl}}/v1/keys/{id}/rotate",
           "host": [
             "{{baseUrl}}"
           ],
           "path": [
             "v1",
-            "keys",
-            "{id}",
-            "rotate"
-          ]
-        },
-        "description": "Issues a replacement key and revokes the old one. This is the answer to a leaked or lost key: the new secret is returned once, the old secret stops working immediately, and the label carries over unless you supply a new one. The replacement is issued at your account's current allowance — your paid plan if you have one — not at the old key's. Rotating does not count against the active-key limit, because it replaces rather than adds. Free, and it works while you are out of quota.",
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"name\": \"production (rotated)\"\n}",
-          "options": {
-            "raw": {
-              "language": "json"
+            "exceptions"
+          ],
+          "raw": "{{baseUrl}}/v1/exceptions"
+        }
+      },
+      "response": [
+        {
+          "_postman_previewlanguage": "json",
+          "body": "{\n  \"resolution\": {\n    \"exceptionId\": \"case_88213\",\n    \"orderId\": \"SO-90417\",\n    \"currency\": \"USD\",\n    \"observedAt\": \"2026-03-21T00:00:00Z\",\n    \"evaluatedAt\": \"2026-09-06T20:30:00.000Z\",\n    \"orderStatus\": \"open\",\n    \"ageDays\": 19,\n    \"severity\": \"critical\",\n    \"policy\": {\n      \"fulfilmentSlaDays\": 3,\n      \"transitStaleDays\": 10,\n      \"duplicateWindowMinutes\": 60,\n      \"escalateAfterDays\": 14,\n      \"autoRefundCapMinor\": null\n    },\n    \"ledger\": {\n      \"currency\": \"USD\",\n      \"orderedValueMinor\": 19700,\n      \"shippedValueMinor\": 19700,\n      \"deliveredValueMinor\": 1900,\n      \"returnedValueMinor\": 0,\n      \"inTransitValueMinor\": 17800,\n      \"keptValueMinor\": 1900,\n      \"unshippedValueMinor\": 0,\n      \"unfulfillableValueMinor\": 0,\n      \"entitledToHoldMinor\": 1900,\n      \"capturedMinor\": 39400,\n      \"refundedMinor\": 0,\n      \"netCapturedMinor\": 39400,\n      \"authorizedMinor\": 0,\n      \"duplicateCaptureMinor\": 19700,\n      \"overholdMinor\": 37500,\n      \"shortfallMinor\": 0,\n      \"refundCeilingMinor\": 39400,\n      \"unshippedUnits\": 0,\n      \"unrestockedUnits\": 0\n    },\n    \"findings\": [\n      {\n        \"type\": \"duplicate_charge\",\n        \"severity\": \"critical\",\n        \"amountMinor\": 19700,\n        \"detail\": \"1 capture(s) of an amount already taken within 60 minute(s), worth 19700 minor units.\",\n        \"evidence\": [\n          \"charge ch_A2 captured 3 minute(s) after ch_A1 for the same 19700 minor units\"\n        ],\n        \"ageDays\": 19,\n        \"agedUp\": false\n      },\n      {\n        \"type\": \"shipment_lost_in_transit\",\n        \"severity\": \"critical\",\n        \"amountMinor\": 17800,\n        \"units\": 2,\n        \"detail\": \"The carrier declared the shipment lost with 17800 minor units of goods aboard.\",\n        \"evidence\": [\n          \"shipment.status=lost\",\n          \"shipment.trackingId=1Z-4471\",\n          \"daysSinceLastScan=15\",\n          \"inTransitValueMinor=17800\"\n        ],\n        \"ageDays\": 19,\n        \"agedUp\": true\n      }\n    ],\n    \"actions\": [\n      {\n        \"kind\": \"refund\",\n        \"exceptionType\": \"duplicate_charge\",\n        \"amountMinor\": 19700,\n        \"currency\": \"USD\",\n        \"claimedMinor\": 19700,\n        \"clipped\": false,\n        \"reason\": \"duplicate_capture_returned\",\n        \"detail\": \"Refund the duplicate capture through the original payment.\",\n        \"idempotencyKey\": \"cxr_bdb5ff5fc060e3aa35f8c5d163170934\"\n      },\n      {\n        \"kind\": \"refund\",\n        \"exceptionType\": \"shipment_lost_in_transit\",\n        \"amountMinor\": 17800,\n        \"currency\": \"USD\",\n        \"claimedMinor\": 17800,\n        \"clipped\": false,\n        \"units\": 2,\n        \"reason\": \"shipment_declared_lost\",\n        \"detail\": \"Refund the value of the goods that never arrived.\",\n        \"idempotencyKey\": \"cxr_c698a66459a3e8f94efdd57c2b3d4941\"\n      }\n    ],\n    \"totals\": {\n      \"recoverableMinor\": 37500,\n      \"refundMinor\": 37500,\n      \"creditMinor\": 0,\n      \"escalatedPayoutMinor\": 0,\n      \"recaptureMinor\": 0,\n      \"pendingRecaptureMinor\": 0,\n      \"restockUnits\": 0\n    },\n    \"receipt\": {\n      \"exceptionId\": \"case_88213\",\n      \"orderId\": \"SO-90417\",\n      \"currency\": \"USD\",\n      \"decidedAt\": \"2026-09-06T20:30:00.000Z\",\n      \"findingCount\": 2,\n      \"actionCount\": 2,\n      \"netCapturedMinor\": 39400,\n      \"refundCeilingMinor\": 39400,\n      \"moneyOutMinor\": 37500,\n      \"moneyInMinor\": 0,\n      \"evidence\": [\n        \"duplicate_charge -> refund 19700 USD (duplicate_capture_returned) cxr_bdb5ff5fc060e3aa35f8c5d163170934\",\n        \"shipment_lost_in_transit -> refund 17800 USD (shipment_declared_lost) cxr_c698a66459a3e8f94efdd57c2b3d4941\"\n      ],\n      \"digest\": \"823177ea0cc6b52cdedddca5bff2a383e2f8b4a518335881790a3c7fc4c36af1\"\n    },\n    \"warnings\": []\n  },\n  \"requestId\": \"req_example\"\n}",
+          "code": 200,
+          "cookie": [],
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
             }
-          }
+          ],
+          "name": "200 — authenticated primary result shape",
+          "originalRequest": {
+            "body": {
+              "mode": "raw",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              },
+              "raw": "{\n  \"exception\": {\n    \"exceptionId\": \"case_88213\",\n    \"orderId\": \"SO-90417\",\n    \"currency\": \"USD\",\n    \"placedAt\": \"2026-03-02T00:00:00Z\",\n    \"observedAt\": \"2026-03-21T00:00:00Z\",\n    \"orderStatus\": \"open\",\n    \"lines\": [\n      {\n        \"sku\": \"KB-88\",\n        \"description\": \"Mechanical keyboard\",\n        \"orderedQty\": 2,\n        \"shippedQty\": 2,\n        \"deliveredQty\": 0,\n        \"returnedQty\": 0,\n        \"unitPriceMinor\": 8900,\n        \"onHandQty\": 0\n      },\n      {\n        \"sku\": \"CBL-2M\",\n        \"description\": \"USB-C cable 2m\",\n        \"orderedQty\": 1,\n        \"shippedQty\": 1,\n        \"deliveredQty\": 1,\n        \"returnedQty\": 0,\n        \"unitPriceMinor\": 1900,\n        \"onHandQty\": 40\n      }\n    ],\n    \"payment\": {\n      \"capturedMinor\": 39400,\n      \"refundedMinor\": 0,\n      \"authorizedMinor\": 0,\n      \"charges\": [\n        {\n          \"chargeId\": \"ch_A1\",\n          \"amountMinor\": 19700,\n          \"capturedAt\": \"2026-03-02T10:14:00Z\",\n          \"status\": \"captured\"\n        },\n        {\n          \"chargeId\": \"ch_A2\",\n          \"amountMinor\": 19700,\n          \"capturedAt\": \"2026-03-02T10:17:00Z\",\n          \"status\": \"captured\"\n        }\n      ]\n    },\n    \"shipment\": {\n      \"status\": \"lost\",\n      \"carrier\": \"UPS\",\n      \"trackingId\": \"1Z-4471\",\n      \"lastScanAt\": \"2026-03-06T02:00:00Z\",\n      \"promisedBy\": \"2026-03-09\"\n    }\n  }\n}"
+            },
+            "description": "Authenticated primary-value call. Reuses the complete demo payload. All money uses one currency and integer minor units. Include charge timestamps to detect duplicates and shipment state to bound what the merchant may retain.",
+            "header": [
+              {
+                "key": "content-type",
+                "value": "application/json"
+              },
+              {
+                "key": "authorization",
+                "value": "Bearer {{apiKey}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "exceptions"
+              ],
+              "raw": "{{baseUrl}}/v1/exceptions"
+            }
+          },
+          "status": "OK"
+        }
+      ]
+    },
+    {
+      "name": "Every exception type, action kind and reason code the engine emits",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "description": "Public stable-code catalogue. Use codes and constants for integrations; prose details may be reworded.",
+        "header": [],
+        "method": "GET",
+        "url": {
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "exception-types"
+          ],
+          "raw": "{{baseUrl}}/v1/exception-types"
         }
       }
     },
     {
-      "name": "Your consumption and remaining allowance for this period",
+      "name": "Liveness and deployed version",
       "request": {
-        "method": "GET",
-        "header": [
-          {
-            "key": "authorization",
-            "value": "Bearer {{apiKey}}"
-          }
-        ],
-        "url": {
-          "raw": "{{baseUrl}}/v1/usage",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "v1",
-            "usage"
-          ]
+        "auth": {
+          "type": "noauth"
         },
-        "description": "Reports what YOUR ACCOUNT has consumed in the current quota period, the ceiling being enforced against it, and when that ceiling resets. The allowance belongs to the account, not to a key: every key you hold for this API draws on the same budget, so \"used\" is the total across all of them and a new key does not arrive with a fresh one. Free, and it consumes no quota, so it still answers once you are getting 429 quota_exceeded — which is the point: compare \"used\" against \"ceiling\" and read \"period.resetsAt\" to tell a period you have simply exhausted from a plan that is no longer active, which shows as a \"status\" of canceled and a ceiling of 0. \"used\" counts billing units (see \"unit\"), not HTTP requests: a single request can consume several. All money is in integer minor units (cents), never a decimal. The period reported here is the quota period — the calendar month in UTC, resetting at 00:00 UTC on the 1st. Your invoice window is anchored to the date you subscribed and is a different window; the amounts here are what this period’s usage has accrued so far, not a bill."
-      }
-    },
-    {
-      "name": "Your current plan, billing window and available changes (dashboard session required)",
-      "request": {
-        "method": "GET",
         "header": [],
+        "method": "GET",
         "url": {
-          "raw": "{{baseUrl}}/v1/subscription",
           "host": [
             "{{baseUrl}}"
           ],
           "path": [
-            "v1",
-            "subscription"
-          ]
-        },
-        "description": "Reports the plan this account is on, the billing window it is in, any tier change already staged for the next invoice, and the full pricing ladder marked up so you can see which rungs are an upgrade and which a downgrade. `planChangesGoThrough` is the field to branch on: `self_serve` means POST /v1/subscription/plan can move you; `provider_managed` means Square’s own recurring subscription holds your price and neither this API nor a new checkout can move it — buying again would create a SECOND Square subscription and charge you twice; `checkout` appears only when you have no plan at all, where starting one is exactly right. All money is in integer minor units (cents). AUTHENTICATION IS YOUR DASHBOARD SESSION, NOT AN API KEY. Send the `@sp/core` session cookie this API sets when you sign in, from the same origin. An API key is refused here on purpose: it is a data-plane credential that lives in CI and in third-party integrations, and it must never be able to change what you are billed, cancel your account, or read your payment history. Errors: 401 `unauthenticated` when there is no valid session, 403 `forbidden` when the request is cross-origin or its `x-csrf-token` header is missing or wrong."
+            "health"
+          ],
+          "raw": "{{baseUrl}}/health"
+        }
       }
     },
     {
-      "name": "Upgrade or downgrade to another plan (dashboard session required)",
+      "name": "Service index — endpoints, auth and error format",
       "request": {
-        "method": "POST",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [],
+        "method": "GET",
+        "url": {
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [],
+          "raw": "{{baseUrl}}/"
+        }
+      }
+    },
+    {
+      "name": "Start a hosted Square checkout for a paid tier",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          },
+          "raw": "{\n  \"tier\": \"developer\"\n}"
+        },
+        "description": "Returns a Square-hosted payment URL for the requested tier. No API key is needed — a prospect has not got one yet. The email Square collects becomes the account, so a key issued later for the same address inherits the paid quota. Enterprise returns a contact route rather than a payment link. THIS IS THE PATH FOR SOMEONE WHO IS NOT YET PAYING. It starts a NEW Square recurring subscription, so it is refused with 409 `conflict` (`details.reason` `existing_subscription`) when the request carries a dashboard session for an account that already has a live plan on this API — a second subscription would be charged alongside the first, every month, and this API cannot cancel either one. Change tier with POST /v1/subscription/plan, or, when Square collects your base fee, cancel it with Square first.\n\nPostman authentication: No Auth. This public checkout bootstrap must not inherit the collection API key.",
         "header": [
           {
             "key": "content-type",
             "value": "application/json"
           }
         ],
+        "method": "POST",
         "url": {
-          "raw": "{{baseUrl}}/v1/subscription/plan",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "checkout"
+          ],
+          "raw": "{{baseUrl}}/v1/checkout"
+        }
+      }
+    },
+    {
+      "name": "Square billing events, forwarded by the shared hub",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "description": "Machine-to-machine only. The shared Square billing hub POSTs signed events here; the signature is verified over the exact request bytes. Not callable by API consumers — documented so the integration is auditable.\n\nMachine-to-machine only. Postman uses No Auth so bearer credentials cannot leak onto this request. An authorized hub must set local `hubTimestamp` and `hubSignature`, where the signature is HMAC-SHA256 over `${x-hub-timestamp}.${rawBody}` with the shared hub secret. Both committed placeholders are empty.",
+        "header": [
+          {
+            "description": "Machine-to-machine HMAC-SHA256 signature. Empty in the committed collection; never use an API key here.",
+            "key": "x-hub-signature",
+            "type": "text",
+            "value": "{{hubSignature}}"
+          },
+          {
+            "description": "Unix timestamp covered by the hub signature and five-minute replay window. Empty in the committed collection.",
+            "key": "x-hub-timestamp",
+            "type": "text",
+            "value": "{{hubTimestamp}}"
+          }
+        ],
+        "method": "POST",
+        "url": {
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "billing",
+            "webhook"
+          ],
+          "raw": "{{baseUrl}}/api/billing/webhook"
+        }
+      }
+    },
+    {
+      "name": "List your API keys for this API",
+      "request": {
+        "description": "Every key on YOUR account for this API — label, non-secret prefix, status, when it was created, when it was last used, and what it has consumed this period. Authenticate with any active key on the account; the account is taken from that key, never from a parameter, so this can only ever return your own keys. Keys you hold for other APIs in the portfolio are not listed here. Secrets are not returned and cannot be: only a peppered hash is stored. Free, and consumes no quota.",
+        "header": [
+          {
+            "key": "authorization",
+            "value": "Bearer {{apiKey}}"
+          }
+        ],
+        "method": "GET",
+        "url": {
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "keys"
+          ],
+          "raw": "{{baseUrl}}/v1/keys"
+        }
+      }
+    },
+    {
+      "name": "Revoke one of your API keys",
+      "request": {
+        "description": "Kills a key immediately: the very next request made with it is refused with 401 invalid_api_key. There is no propagation delay and no cache to wait out. You may revoke the key you are authenticating with — that is the correct move when it has leaked, though you will then need another key, or the email flow, to get back in; rotate does both in one call. A key belonging to another account, or to another API, answers 404 exactly as an unknown id does, so this cannot be used to probe for keys you do not own. Idempotent, and free.",
+        "header": [
+          {
+            "key": "authorization",
+            "value": "Bearer {{apiKey}}"
+          }
+        ],
+        "method": "POST",
+        "url": {
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "keys",
+            "{{keyId}}",
+            "revoke"
+          ],
+          "raw": "{{baseUrl}}/v1/keys/{{keyId}}/revoke"
+        }
+      }
+    },
+    {
+      "name": "Replace one of your API keys with a new secret",
+      "request": {
+        "body": {
+          "mode": "raw",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          },
+          "raw": "{\n  \"name\": \"production (rotated)\"\n}"
+        },
+        "description": "Issues a replacement key and revokes the old one. This is the answer to a leaked or lost key: the new secret is returned once, the old secret stops working immediately, and the label carries over unless you supply a new one. The replacement is issued at your account's current allowance — your paid plan if you have one — not at the old key's. Rotating does not count against the active-key limit, because it replaces rather than adds. Free, and it works while you are out of quota.",
+        "header": [
+          {
+            "key": "content-type",
+            "value": "application/json"
+          },
+          {
+            "key": "authorization",
+            "value": "Bearer {{apiKey}}"
+          }
+        ],
+        "method": "POST",
+        "url": {
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "keys",
+            "{{keyId}}",
+            "rotate"
+          ],
+          "raw": "{{baseUrl}}/v1/keys/{{keyId}}/rotate"
+        }
+      }
+    },
+    {
+      "name": "Your consumption and remaining allowance for this period",
+      "request": {
+        "description": "Reports what YOUR ACCOUNT has consumed in the current quota period, the ceiling being enforced against it, and when that ceiling resets. The allowance belongs to the account, not to a key: every key you hold for this API draws on the same budget, so \"used\" is the total across all of them and a new key does not arrive with a fresh one. Free, and it consumes no quota, so it still answers once you are getting 429 quota_exceeded — which is the point: compare \"used\" against \"ceiling\" and read \"period.resetsAt\" to tell a period you have simply exhausted from a plan that is no longer active, which shows as a \"status\" of canceled and a ceiling of 0. \"used\" counts billing units (see \"unit\"), not HTTP requests: a single request can consume several. All money is in integer minor units (cents), never a decimal. The period reported here is the quota period — the calendar month in UTC, resetting at 00:00 UTC on the 1st. Your invoice window is anchored to the date you subscribed and is a different window; the amounts here are what this period’s usage has accrued so far, not a bill.",
+        "header": [
+          {
+            "key": "authorization",
+            "value": "Bearer {{apiKey}}"
+          }
+        ],
+        "method": "GET",
+        "url": {
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "usage"
+          ],
+          "raw": "{{baseUrl}}/v1/usage"
+        }
+      }
+    },
+    {
+      "name": "Your current plan, billing window and available changes (dashboard session required)",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "description": "Reports the plan this account is on, the billing window it is in, any tier change already staged for the next invoice, and the full pricing ladder marked up so you can see which rungs are an upgrade and which a downgrade. `planChangesGoThrough` is the field to branch on: `self_serve` means POST /v1/subscription/plan can move you; `provider_managed` means Square’s own recurring subscription holds your price and neither this API nor a new checkout can move it — buying again would create a SECOND Square subscription and charge you twice; `checkout` appears only when you have no plan at all, where starting one is exactly right. All money is in integer minor units (cents). AUTHENTICATION IS YOUR DASHBOARD SESSION, NOT AN API KEY. Send the `@sp/core` session cookie this API sets when you sign in, from the same origin. An API key is refused here on purpose: it is a data-plane credential that lives in CI and in third-party integrations, and it must never be able to change what you are billed, cancel your account, or read your payment history. Errors: 401 `unauthenticated` when there is no valid session, 403 `forbidden` when the request is cross-origin or its `x-csrf-token` header is missing or wrong.\n\nPostman: use No Auth and provide the dashboard `sp_session` through the host cookie jar or the local empty-by-default `sessionCookie` placeholder. An API key is rejected.",
+        "header": [
+          {
+            "description": "Dashboard session only. Keep sessionCookie empty in the committed collection; set it locally or use the Postman cookie jar for this host.",
+            "key": "Cookie",
+            "type": "text",
+            "value": "sp_session={{sessionCookie}}"
+          }
+        ],
+        "method": "GET",
+        "url": {
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "v1",
+            "subscription"
+          ],
+          "raw": "{{baseUrl}}/v1/subscription"
+        }
+      }
+    },
+    {
+      "name": "Upgrade or downgrade to another plan (dashboard session required)",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          },
+          "raw": "{\n  \"planId\": \"growth\"\n}"
+        },
+        "description": "Moves this account to another rung of the published pricing ladder and re-derives the ceiling enforced against every API key on it, so an upgrade is usable immediately rather than at the next invoice. The change is STAGED, not overwritten: the current billing window is closed at this instant and priced against the tier that was actually in force for it, and the incoming tier opens the next window with the original billing anniversary preserved. A downgrade therefore never re-prices days you already consumed on the dearer plan. Refused with 409 `conflict` (`details.reason` `provider_owned_base_fee`) when Square’s own recurring subscription holds your price (`baseFeeOwner` is `provider`) — read `planChangesGoThrough` from GET /v1/subscription first. That case cannot be moved from here at all: this API holds no Square subscription of yours to change, and POST /v1/checkout would create a SECOND one and charge you for both. Cancel with Square and buy the tier you want, or contact support. AUTHENTICATION IS YOUR DASHBOARD SESSION, NOT AN API KEY. Send the `@sp/core` session cookie this API sets when you sign in, from the same origin. An API key is refused here on purpose: it is a data-plane credential that lives in CI and in third-party integrations, and it must never be able to change what you are billed, cancel your account, or read your payment history. Errors: 401 `unauthenticated` when there is no valid session, 403 `forbidden` when the request is cross-origin or its `x-csrf-token` header is missing or wrong.\n\nPostman: use No Auth, provide `sp_session` through the host cookie jar or local `sessionCookie`, and set local `csrfToken` for `x-csrf-token`. Both placeholders are committed empty. An API key is rejected.",
+        "header": [
+          {
+            "key": "content-type",
+            "value": "application/json"
+          },
+          {
+            "description": "Dashboard session only. Keep sessionCookie empty in the committed collection; set it locally or use the Postman cookie jar for this host.",
+            "key": "Cookie",
+            "type": "text",
+            "value": "sp_session={{sessionCookie}}"
+          },
+          {
+            "description": "CSRF token paired with the dashboard session. Empty in the committed collection; set locally immediately before the request.",
+            "key": "x-csrf-token",
+            "type": "text",
+            "value": "{{csrfToken}}"
+          }
+        ],
+        "method": "POST",
+        "url": {
           "host": [
             "{{baseUrl}}"
           ],
@@ -407,32 +596,47 @@
             "v1",
             "subscription",
             "plan"
-          ]
-        },
-        "description": "Moves this account to another rung of the published pricing ladder and re-derives the ceiling enforced against every API key on it, so an upgrade is usable immediately rather than at the next invoice. The change is STAGED, not overwritten: the current billing window is closed at this instant and priced against the tier that was actually in force for it, and the incoming tier opens the next window with the original billing anniversary preserved. A downgrade therefore never re-prices days you already consumed on the dearer plan. Refused with 409 `conflict` (`details.reason` `provider_owned_base_fee`) when Square’s own recurring subscription holds your price (`baseFeeOwner` is `provider`) — read `planChangesGoThrough` from GET /v1/subscription first. That case cannot be moved from here at all: this API holds no Square subscription of yours to change, and POST /v1/checkout would create a SECOND one and charge you for both. Cancel with Square and buy the tier you want, or contact support. AUTHENTICATION IS YOUR DASHBOARD SESSION, NOT AN API KEY. Send the `@sp/core` session cookie this API sets when you sign in, from the same origin. An API key is refused here on purpose: it is a data-plane credential that lives in CI and in third-party integrations, and it must never be able to change what you are billed, cancel your account, or read your payment history. Errors: 401 `unauthenticated` when there is no valid session, 403 `forbidden` when the request is cross-origin or its `x-csrf-token` header is missing or wrong.",
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"planId\": \"growth\"\n}",
-          "options": {
-            "raw": {
-              "language": "json"
-            }
-          }
+          ],
+          "raw": "{{baseUrl}}/v1/subscription/plan"
         }
       }
     },
     {
       "name": "Cancel this plan and end metered access (dashboard session required)",
       "request": {
-        "method": "POST",
+        "auth": {
+          "type": "noauth"
+        },
+        "body": {
+          "mode": "raw",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          },
+          "raw": "{\n  \"acknowledgeProviderBilling\": true\n}"
+        },
+        "description": "Cancels the plan and drops every API key on this account for this product to a ceiling of 0, so access ends at the moment you cancel rather than at some later date nothing would enforce. The window you cancel in is closed and invoiced first, prorated to that instant: the elapsed share of the base fee plus any overage you accrued, still under the same spend cap. The invoice it writes is returned as `finalInvoice` and appears in GET /v1/invoices. When Square’s own recurring subscription collects your flat monthly fee (`baseFeeOwner` is `provider`) this API cannot stop that charge, so the request is refused with 409 unless you send `acknowledgeProviderBilling: true` — that flag exists so nobody ends up with a ceiling of zero and a live monthly charge without having been told first. AUTHENTICATION IS YOUR DASHBOARD SESSION, NOT AN API KEY. Send the `@sp/core` session cookie this API sets when you sign in, from the same origin. An API key is refused here on purpose: it is a data-plane credential that lives in CI and in third-party integrations, and it must never be able to change what you are billed, cancel your account, or read your payment history. Errors: 401 `unauthenticated` when there is no valid session, 403 `forbidden` when the request is cross-origin or its `x-csrf-token` header is missing or wrong.\n\nPostman: use No Auth, provide `sp_session` through the host cookie jar or local `sessionCookie`, and set local `csrfToken` for `x-csrf-token`. Both placeholders are committed empty. An API key is rejected.",
         "header": [
           {
             "key": "content-type",
             "value": "application/json"
+          },
+          {
+            "description": "Dashboard session only. Keep sessionCookie empty in the committed collection; set it locally or use the Postman cookie jar for this host.",
+            "key": "Cookie",
+            "type": "text",
+            "value": "sp_session={{sessionCookie}}"
+          },
+          {
+            "description": "CSRF token paired with the dashboard session. Empty in the committed collection; set locally immediately before the request.",
+            "key": "x-csrf-token",
+            "type": "text",
+            "value": "{{csrfToken}}"
           }
         ],
+        "method": "POST",
         "url": {
-          "raw": "{{baseUrl}}/v1/subscription/cancel",
           "host": [
             "{{baseUrl}}"
           ],
@@ -440,55 +644,115 @@
             "v1",
             "subscription",
             "cancel"
-          ]
-        },
-        "description": "Cancels the plan and drops every API key on this account for this product to a ceiling of 0, so access ends at the moment you cancel rather than at some later date nothing would enforce. The window you cancel in is closed and invoiced first, prorated to that instant: the elapsed share of the base fee plus any overage you accrued, still under the same spend cap. The invoice it writes is returned as `finalInvoice` and appears in GET /v1/invoices. When Square’s own recurring subscription collects your flat monthly fee (`baseFeeOwner` is `provider`) this API cannot stop that charge, so the request is refused with 409 unless you send `acknowledgeProviderBilling: true` — that flag exists so nobody ends up with a ceiling of zero and a live monthly charge without having been told first. AUTHENTICATION IS YOUR DASHBOARD SESSION, NOT AN API KEY. Send the `@sp/core` session cookie this API sets when you sign in, from the same origin. An API key is refused here on purpose: it is a data-plane credential that lives in CI and in third-party integrations, and it must never be able to change what you are billed, cancel your account, or read your payment history. Errors: 401 `unauthenticated` when there is no valid session, 403 `forbidden` when the request is cross-origin or its `x-csrf-token` header is missing or wrong.",
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"acknowledgeProviderBilling\": true\n}",
-          "options": {
-            "raw": {
-              "language": "json"
-            }
-          }
+          ],
+          "raw": "{{baseUrl}}/v1/subscription/cancel"
         }
       }
     },
     {
       "name": "Every invoice issued against this account, newest first (dashboard session required)",
       "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "description": "Returns the stored `api_plan_invoices` rows for this account and this API — the rows the billing run actually wrote, never a reconstruction. Each one reconciles against itself: the included allowance and base fee shown are the PRORATED figures applied to that window, `overageMinorRaw` is the uncapped overage and `overageMinorCapped` is what was charged, and `baseChargedMinor` says how much of the base fee this invoice collected — 0 when Square’s recurring subscription had already taken it. An account with no billing history yet gets an empty list and a `note` explaining why, never a fabricated row. AUTHENTICATION IS YOUR DASHBOARD SESSION, NOT AN API KEY. Send the `@sp/core` session cookie this API sets when you sign in, from the same origin. An API key is refused here on purpose: it is a data-plane credential that lives in CI and in third-party integrations, and it must never be able to change what you are billed, cancel your account, or read your payment history. Errors: 401 `unauthenticated` when there is no valid session, 403 `forbidden` when the request is cross-origin or its `x-csrf-token` header is missing or wrong.\n\nPostman: use No Auth and provide the dashboard `sp_session` through the host cookie jar or the local empty-by-default `sessionCookie` placeholder. An API key is rejected.",
+        "header": [
+          {
+            "description": "Dashboard session only. Keep sessionCookie empty in the committed collection; set it locally or use the Postman cookie jar for this host.",
+            "key": "Cookie",
+            "type": "text",
+            "value": "sp_session={{sessionCookie}}"
+          }
+        ],
         "method": "GET",
-        "header": [],
         "url": {
-          "raw": "{{baseUrl}}/v1/invoices",
           "host": [
             "{{baseUrl}}"
           ],
           "path": [
             "v1",
             "invoices"
-          ]
-        },
-        "description": "Returns the stored `api_plan_invoices` rows for this account and this API — the rows the billing run actually wrote, never a reconstruction. Each one reconciles against itself: the included allowance and base fee shown are the PRORATED figures applied to that window, `overageMinorRaw` is the uncapped overage and `overageMinorCapped` is what was charged, and `baseChargedMinor` says how much of the base fee this invoice collected — 0 when Square’s recurring subscription had already taken it. An account with no billing history yet gets an empty list and a `note` explaining why, never a fabricated row. AUTHENTICATION IS YOUR DASHBOARD SESSION, NOT AN API KEY. Send the `@sp/core` session cookie this API sets when you sign in, from the same origin. An API key is refused here on purpose: it is a data-plane credential that lives in CI and in third-party integrations, and it must never be able to change what you are billed, cancel your account, or read your payment history. Errors: 401 `unauthenticated` when there is no valid session, 403 `forbidden` when the request is cross-origin or its `x-csrf-token` header is missing or wrong."
+          ],
+          "raw": "{{baseUrl}}/v1/invoices"
+        }
       }
     },
     {
       "name": "Every payment attempted against this account and how it went (dashboard session required)",
       "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "description": "The money movements behind your invoices, newest first: what was charged, whether it succeeded, and the processor’s payment id when it did. A billing period that came to nothing produces NO row here — it was closed without asking the processor for anything, and listing it would show you a payment that never happened. A failed attempt does appear, with its reason, because that is why an account goes past due. AUTHENTICATION IS YOUR DASHBOARD SESSION, NOT AN API KEY. Send the `@sp/core` session cookie this API sets when you sign in, from the same origin. An API key is refused here on purpose: it is a data-plane credential that lives in CI and in third-party integrations, and it must never be able to change what you are billed, cancel your account, or read your payment history. Errors: 401 `unauthenticated` when there is no valid session, 403 `forbidden` when the request is cross-origin or its `x-csrf-token` header is missing or wrong.\n\nPostman: use No Auth and provide the dashboard `sp_session` through the host cookie jar or the local empty-by-default `sessionCookie` placeholder. An API key is rejected.",
+        "header": [
+          {
+            "description": "Dashboard session only. Keep sessionCookie empty in the committed collection; set it locally or use the Postman cookie jar for this host.",
+            "key": "Cookie",
+            "type": "text",
+            "value": "sp_session={{sessionCookie}}"
+          }
+        ],
         "method": "GET",
-        "header": [],
         "url": {
-          "raw": "{{baseUrl}}/v1/payments",
           "host": [
             "{{baseUrl}}"
           ],
           "path": [
             "v1",
             "payments"
-          ]
-        },
-        "description": "The money movements behind your invoices, newest first: what was charged, whether it succeeded, and the processor’s payment id when it did. A billing period that came to nothing produces NO row here — it was closed without asking the processor for anything, and listing it would show you a payment that never happened. A failed attempt does appear, with its reason, because that is why an account goes past due. AUTHENTICATION IS YOUR DASHBOARD SESSION, NOT AN API KEY. Send the `@sp/core` session cookie this API sets when you sign in, from the same origin. An API key is refused here on purpose: it is a data-plane credential that lives in CI and in third-party integrations, and it must never be able to change what you are billed, cancel your account, or read your payment history. Errors: 401 `unauthenticated` when there is no valid session, 403 `forbidden` when the request is cross-origin or its `x-csrf-token` header is missing or wrong."
+          ],
+          "raw": "{{baseUrl}}/v1/payments"
+        }
       }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "type": "string",
+      "value": "https://commerceexception-api.com"
+    },
+    {
+      "description": "Set locally after a successful claim. Empty in this committed collection.",
+      "key": "apiKey",
+      "type": "string",
+      "value": ""
+    },
+    {
+      "description": "Paste the one-time emailed token. Cleared locally after a successful claim.",
+      "key": "claimToken",
+      "type": "string",
+      "value": ""
+    },
+    {
+      "description": "Set locally after claim for rotate/revoke operations.",
+      "key": "keyId",
+      "type": "string",
+      "value": ""
+    },
+    {
+      "description": "Dashboard sp_session cookie value. Empty in this committed collection; set locally or use the Postman cookie jar.",
+      "key": "sessionCookie",
+      "type": "string",
+      "value": ""
+    },
+    {
+      "description": "Dashboard CSRF token. Empty in this committed collection; set locally only for a session-authenticated mutation.",
+      "key": "csrfToken",
+      "type": "string",
+      "value": ""
+    },
+    {
+      "description": "Machine-to-machine x-hub-signature value. Empty in this committed collection; never substitute an API key.",
+      "key": "hubSignature",
+      "type": "string",
+      "value": ""
+    },
+    {
+      "description": "Machine-to-machine x-hub-timestamp value covered by the HMAC signature. Empty in this committed collection.",
+      "key": "hubTimestamp",
+      "type": "string",
+      "value": ""
     }
   ]
 }

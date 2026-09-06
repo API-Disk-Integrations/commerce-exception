@@ -854,8 +854,8 @@
                   "exceptionId": "case_88213",
                   "orderId": "SO-90417",
                   "currency": "USD",
-                  "placedAt": "2026-03-02",
-                  "observedAt": "2026-03-21",
+                  "placedAt": "2026-03-02T00:00:00Z",
+                  "observedAt": "2026-03-21T00:00:00Z",
                   "orderStatus": "open",
                   "lines": [
                     {
@@ -1436,8 +1436,8 @@
                   "exceptionId": "case_88213",
                   "orderId": "SO-90417",
                   "currency": "USD",
-                  "placedAt": "2026-03-02",
-                  "observedAt": "2026-03-21",
+                  "placedAt": "2026-03-02T00:00:00Z",
+                  "observedAt": "2026-03-21T00:00:00Z",
                   "orderStatus": "open",
                   "lines": [
                     {
